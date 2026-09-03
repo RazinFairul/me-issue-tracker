@@ -9,8 +9,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('');
-  const [weekFilter, setWeekFilter] = useState('');
-  const [monthFilter, setMonthFilter] = useState('');
   const [yearFilter, setYearFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [classificationFilter, setClassificationFilter] = useState('All');
@@ -57,7 +55,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     fetchIssues();
   }, [refreshTrigger]);
 
-  // Ekstrak senarai tahun unik secara automatik dari data isu
   const uniqueYears = useMemo(() => {
     const years = new Set();
     issues.forEach((i) => {
@@ -210,18 +207,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setUpdating(false);
   };
 
-  // Helper untuk ISO Week
-  const getISOWeekString = (dateObj) => {
-    if (!dateObj || isNaN(dateObj.getTime())) return '';
-    const d = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
-  };
-
-  // Logik Penapisan Serentak (Search, Date, Week, Month, Year, etc.)
+  // Logik Penapisan
   const filteredIssues = issues.filter((issue) => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
@@ -246,23 +232,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       matchesDate = issueFormattedDate === dateFilter || estClosingFormattedDate === dateFilter;
     }
 
-    // Filter Week (ISO Week)
-    let matchesWeek = true;
-    if (weekFilter) {
-      const issueWeek = issueDateRaw ? getISOWeekString(new Date(issueDateRaw)) : '';
-      const estWeek = estClosingRaw ? getISOWeekString(new Date(estClosingRaw)) : '';
-      matchesWeek = issueWeek === weekFilter || estWeek === weekFilter;
-    }
-
-    // Filter Month (YYYY-MM)
-    let matchesMonth = true;
-    if (monthFilter) {
-      const issueMonth = issueDateRaw ? issueDateRaw.slice(0, 7) : '';
-      const estMonth = estClosingRaw ? estClosingRaw.slice(0, 7) : '';
-      matchesMonth = issueMonth === monthFilter || estMonth === monthFilter;
-    }
-
-    // Filter Year (YYYY)
+    // Filter Year
     let matchesYear = true;
     if (yearFilter !== 'All') {
       const issueYear = issueDateRaw ? issueDateRaw.slice(0, 4) : '';
@@ -317,8 +287,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return (
       matchesSearch &&
       matchesDate &&
-      matchesWeek &&
-      matchesMonth &&
       matchesYear &&
       matchesStatus &&
       matchesClassification &&
@@ -381,16 +349,16 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Baris 2: Grid Filters Selari (Date, Week, Month, Year, dsb.) */}
+        {/* Baris 2: Filters Selari (Tanpa Week & Month) */}
         <div 
           style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
             gap: '8px',
             alignItems: 'end'
           }}
         >
-          {/* 1. Date (Harian) */}
+          {/* 1. Date (Harian Sahaja) */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📅 Date:
@@ -414,55 +382,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </div>
           </div>
 
-          {/* 2. Week Filter */}
-          <div style={{ minWidth: '0' }}>
-            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-              📆 Week:
-            </label>
-            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-              <input
-                type="week"
-                value={weekFilter}
-                onChange={(e) => setWeekFilter(e.target.value)}
-                style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', boxSizing: 'border-box', cursor: 'pointer' }}
-              />
-              {weekFilter && (
-                <button
-                  onClick={() => setWeekFilter('')}
-                  title="Clear Week"
-                  style={{ backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '5px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* 3. Month Filter (Paparan Kalendar seperti dalam tangkap layar) */}
-          <div style={{ minWidth: '0' }}>
-            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-              🗓️ Month:
-            </label>
-            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-              <input
-                type="month"
-                value={monthFilter}
-                onChange={(e) => setMonthFilter(e.target.value)}
-                style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', boxSizing: 'border-box', cursor: 'pointer' }}
-              />
-              {monthFilter && (
-                <button
-                  onClick={() => setMonthFilter('')}
-                  title="Clear Month"
-                  style={{ backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '5px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* 4. Year Filter */}
+          {/* 2. Year Filter */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📅 Year:
@@ -479,7 +399,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 5. Status */}
+          {/* 3. Status */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📌 Status:
@@ -496,7 +416,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 6. Class */}
+          {/* 4. Class */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               🏷️ Class:
@@ -513,7 +433,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 7. Location */}
+          {/* 5. Location */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📍 Location:
@@ -530,7 +450,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 8. Group */}
+          {/* 6. Group */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👥 Group:
@@ -548,7 +468,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 9. Name */}
+          {/* 7. Name */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 Name:
@@ -565,7 +485,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 10. PIC */}
+          {/* 8. PIC */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 PIC:
