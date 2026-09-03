@@ -8,6 +8,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
+  const [dateMode, setDateMode] = useState('day'); // 'day' | 'week' | 'month'
   const [dateFilter, setDateFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [classificationFilter, setClassificationFilter] = useState('All');
@@ -195,6 +196,16 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setUpdating(false);
   };
 
+  // Helper untuk mendapatkan format ISO Week (YYYY-Www)
+  const getISOWeekString = (dateObj) => {
+    const d = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+  };
+
   // Logik Penapisan
   const filteredIssues = issues.filter((issue) => {
     const searchLower = searchTerm.toLowerCase();
@@ -211,13 +222,22 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     let matchesDate = true;
     if (dateFilter) {
-      const issueDateStr = issue.date_time || issue.created_at;
-      const issueFormattedDate = issueDateStr ? issueDateStr.split('T')[0].split(' ')[0] : '';
-      let estClosingFormattedDate = '';
-      if (issue.estimated_closing) {
-        estClosingFormattedDate = issue.estimated_closing.split('T')[0].split(' ')[0];
+      const issueDateRaw = issue.date_time || issue.created_at;
+      const estClosingRaw = issue.estimated_closing;
+
+      if (dateMode === 'day') {
+        const issueFormattedDate = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
+        const estClosingFormattedDate = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
+        matchesDate = issueFormattedDate === dateFilter || estClosingFormattedDate === dateFilter;
+      } else if (dateMode === 'month') {
+        const issueMonth = issueDateRaw ? issueDateRaw.slice(0, 7) : '';
+        const estMonth = estClosingRaw ? estClosingRaw.slice(0, 7) : '';
+        matchesDate = issueMonth === dateFilter || estMonth === dateFilter;
+      } else if (dateMode === 'week') {
+        const issueWeek = issueDateRaw ? getISOWeekString(new Date(issueDateRaw)) : '';
+        const estWeek = estClosingRaw ? getISOWeekString(new Date(estClosingRaw)) : '';
+        matchesDate = issueWeek === dateFilter || estWeek === dateFilter;
       }
-      matchesDate = issueFormattedDate === dateFilter || estClosingFormattedDate === dateFilter;
     }
 
     let matchesStatus = true;
@@ -313,23 +333,37 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Baris 2: 7 Dropdown Filters Selari */}
+        {/* Baris 2: Dropdown Filters Selari */}
         <div 
           style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
             gap: '8px',
             alignItems: 'end'
           }}
         >
-          {/* 1. Date */}
+          {/* 1. Dynamic Date Filter (Day / Week / Month) */}
           <div style={{ minWidth: '0' }}>
-            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-              📅 Date:
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', whiteSpace: 'nowrap' }}>
+                📅 Filter By:
+              </label>
+              <select
+                value={dateMode}
+                onChange={(e) => {
+                  setDateMode(e.target.value);
+                  setDateFilter('');
+                }}
+                style={{ fontSize: '10px', padding: '1px 3px', borderRadius: '3px', border: '1px solid #ccc', backgroundColor: '#f8fafc', cursor: 'pointer' }}
+              >
+                <option value="day">Day</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+              </select>
+            </div>
             <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
               <input
-                type="date"
+                type={dateMode === 'day' ? 'date' : dateMode === 'week' ? 'week' : 'month'}
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
                 style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', boxSizing: 'border-box', cursor: 'pointer' }}
@@ -397,7 +431,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 5. Group (Standardized: Assembly Line, Test Line, Transmission, IT) */}
+          {/* 5. Group */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👥 Group:
