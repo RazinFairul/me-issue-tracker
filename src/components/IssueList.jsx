@@ -11,6 +11,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [dateFilter, setDateFilter] = useState('');
   const [weekFilter, setWeekFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
+  const [yearFilter, setYearFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [classificationFilter, setClassificationFilter] = useState('All');
   const [locationFilter, setLocationFilter] = useState('All');
@@ -55,6 +56,19 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   useEffect(() => {
     fetchIssues();
   }, [refreshTrigger]);
+
+  // Ekstrak senarai tahun unik secara automatik dari data isu
+  const uniqueYears = useMemo(() => {
+    const years = new Set();
+    issues.forEach((i) => {
+      const raw = i.date_time || i.created_at;
+      if (raw) {
+        const yr = raw.split('T')[0].split('-')[0];
+        if (yr && yr.length === 4) years.add(yr);
+      }
+    });
+    return Array.from(years).sort().reverse();
+  }, [issues]);
 
   const uniqueLocations = useMemo(() => {
     return Array.from(new Set(issues.map((i) => i.location).filter(Boolean))).sort();
@@ -207,7 +221,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
   };
 
-  // Logik Penapisan
+  // Logik Penapisan Serentak (Search, Date, Week, Month, Year, etc.)
   const filteredIssues = issues.filter((issue) => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
@@ -224,7 +238,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const issueDateRaw = issue.date_time || issue.created_at;
     const estClosingRaw = issue.estimated_closing;
 
-    // Filter Date (Harian)
+    // Filter Date Harian
     let matchesDate = true;
     if (dateFilter) {
       const issueFormattedDate = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
@@ -232,7 +246,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       matchesDate = issueFormattedDate === dateFilter || estClosingFormattedDate === dateFilter;
     }
 
-    // Filter Week
+    // Filter Week (ISO Week)
     let matchesWeek = true;
     if (weekFilter) {
       const issueWeek = issueDateRaw ? getISOWeekString(new Date(issueDateRaw)) : '';
@@ -240,7 +254,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       matchesWeek = issueWeek === weekFilter || estWeek === weekFilter;
     }
 
-    // Filter Month
+    // Filter Month (YYYY-MM)
     let matchesMonth = true;
     if (monthFilter) {
       const issueMonth = issueDateRaw ? issueDateRaw.slice(0, 7) : '';
@@ -248,6 +262,15 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       matchesMonth = issueMonth === monthFilter || estMonth === monthFilter;
     }
 
+    // Filter Year (YYYY)
+    let matchesYear = true;
+    if (yearFilter !== 'All') {
+      const issueYear = issueDateRaw ? issueDateRaw.slice(0, 4) : '';
+      const estYear = estClosingRaw ? estClosingRaw.slice(0, 4) : '';
+      matchesYear = issueYear === yearFilter || estYear === yearFilter;
+    }
+
+    // Filter Status
     let matchesStatus = true;
     if (statusFilter !== 'All') {
       if (statusFilter === 'Closed') {
@@ -259,34 +282,51 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       }
     }
 
+    // Filter Class
     let matchesClassification = true;
     if (classificationFilter !== 'All') {
       matchesClassification = issue.classification === classificationFilter;
     }
 
+    // Filter Location
     let matchesLocation = true;
     if (locationFilter !== 'All') {
       matchesLocation = issue.location === locationFilter;
     }
 
+    // Filter Group
     let matchesGroup = true;
     if (groupFilter !== 'All') {
       matchesGroup = issue.group_name === groupFilter;
     }
 
+    // Filter Name
     let matchesName = true;
     if (nameFilter !== 'All') {
       const combinedName = issue.staff_name || issue.staff_id;
       matchesName = combinedName === nameFilter;
     }
 
+    // Filter PIC
     let matchesPic = true;
     if (picFilter !== 'All') {
       const combinedPic = issue.pic_name || issue.pic;
       matchesPic = combinedPic === picFilter;
     }
 
-    return matchesSearch && matchesDate && matchesWeek && matchesMonth && matchesStatus && matchesClassification && matchesLocation && matchesGroup && matchesName && matchesPic;
+    return (
+      matchesSearch &&
+      matchesDate &&
+      matchesWeek &&
+      matchesMonth &&
+      matchesYear &&
+      matchesStatus &&
+      matchesClassification &&
+      matchesLocation &&
+      matchesGroup &&
+      matchesName &&
+      matchesPic
+    );
   });
 
   return (
@@ -341,16 +381,16 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Baris 2: Filters Selari Termasuk Week & Month */}
+        {/* Baris 2: Grid Filters Selari (Date, Week, Month, Year, dsb.) */}
         <div 
           style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', 
             gap: '8px',
             alignItems: 'end'
           }}
         >
-          {/* 1. Daily Date */}
+          {/* 1. Date (Harian) */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📅 Date:
@@ -398,7 +438,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </div>
           </div>
 
-          {/* 3. Month Filter */}
+          {/* 3. Month Filter (Paparan Kalendar seperti dalam tangkap layar) */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               🗓️ Month:
@@ -422,7 +462,24 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </div>
           </div>
 
-          {/* 4. Status */}
+          {/* 4. Year Filter */}
+          <div style={{ minWidth: '0' }}>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+              📅 Year:
+            </label>
+            <select
+              value={yearFilter}
+              onChange={(e) => setYearFilter(e.target.value)}
+              style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
+            >
+              <option value="All">All Years</option>
+              {uniqueYears.map((yr) => (
+                <option key={yr} value={yr}>{yr}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 5. Status */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📌 Status:
@@ -439,7 +496,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 5. Class */}
+          {/* 6. Class */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               🏷️ Class:
@@ -456,7 +513,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 6. Location */}
+          {/* 7. Location */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📍 Location:
@@ -473,7 +530,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 7. Group */}
+          {/* 8. Group */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👥 Group:
@@ -491,7 +548,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 8. Name */}
+          {/* 9. Name */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 Name:
@@ -508,7 +565,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 9. PIC */}
+          {/* 10. PIC */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 PIC:
