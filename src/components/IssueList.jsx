@@ -6,10 +6,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Filter States - HANYA SATU TAB TARIKH DENGAN PILIHAN SKOP
+  // Filter States
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDate, setSelectedDate] = useState(''); // e.g. "2026-09-03"
-  const [dateScope, setDateScope] = useState('day');     // 'day' | 'week' | 'month'
+  const [monthFilter, setMonthFilter] = useState(''); // Format: "YYYY-MM" (cth: "2026-09")
+  const [weekFilter, setWeekFilter] = useState('All'); // 'All' | '1' | '2' | '3' | '4' | '5'
   const [statusFilter, setStatusFilter] = useState('All');
   const [classificationFilter, setClassificationFilter] = useState('All');
   const [locationFilter, setLocationFilter] = useState('All');
@@ -195,22 +195,17 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setUpdating(false);
   };
 
-  // Kira julat minggu (Isnin hingga Ahad) berdasarkan tarikh yang dipilih
-  const weekRange = useMemo(() => {
-    if (!selectedDate) return null;
-    const curr = new Date(selectedDate);
-    const day = curr.getDay();
-    const diffToMonday = curr.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(curr.setDate(diffToMonday));
-    const sunday = new Date(curr.setDate(monday.getDate() + 6));
-    
-    return {
-      start: monday.toISOString().split('T')[0],
-      end: sunday.toISOString().split('T')[0]
-    };
-  }, [selectedDate]);
+  // Helper untuk menentukan Week ke berapa dalam bulan (1 - 5) berdasarkan hari bulan
+  const getWeekOfMonth = (dateString) => {
+    if (!dateString) return null;
+    const dateObj = new Date(dateString);
+    if (isNaN(dateObj.getTime())) return null;
+    const dayOfMonth = dateObj.getDate();
+    // Week 1: 1-7, Week 2: 8-14, Week 3: 15-21, Week 4: 22-28, Week 5: 29-31
+    return String(Math.min(5, Math.ceil(dayOfMonth / 7)));
+  };
 
-  // Logik Penapisan Pintar
+  // Logik Penapisan
   const filteredIssues = issues.filter((issue) => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
@@ -226,20 +221,22 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     const issueDateRaw = issue.date_time || issue.created_at;
     const estClosingRaw = issue.estimated_closing;
-    const issueDateOnly = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
-    const estDateOnly = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
 
-    let matchesDate = true;
-    if (selectedDate) {
-      if (dateScope === 'day') {
-        matchesDate = issueDateOnly === selectedDate || estDateOnly === selectedDate;
-      } else if (dateScope === 'week' && weekRange) {
-        const inIssueRange = issueDateOnly >= weekRange.start && issueDateOnly <= weekRange.end;
-        const inEstRange = estDateOnly >= weekRange.start && estDateOnly <= weekRange.end;
-        matchesDate = inIssueRange || inEstRange;
-      } else if (dateScope === 'month') {
-        const selectedMonth = selectedDate.slice(0, 7); // "YYYY-MM"
-        matchesDate = issueDateOnly.slice(0, 7) === selectedMonth || estDateOnly.slice(0, 7) === selectedMonth;
+    // Filter Month & Week
+    let matchesMonthAndWeek = true;
+    if (monthFilter) {
+      const issueDateOnly = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
+      const estDateOnly = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
+
+      const issueInMonth = issueDateOnly.slice(0, 7) === monthFilter;
+      const estInMonth = estDateOnly.slice(0, 7) === monthFilter;
+
+      if (!issueInMonth && !estInMonth) {
+        matchesMonthAndWeek = false;
+      } else if (weekFilter !== 'All') {
+        const issueWeekNum = issueInMonth ? getWeekOfMonth(issueDateOnly) : null;
+        const estWeekNum = estInMonth ? getWeekOfMonth(estDateOnly) : null;
+        matchesMonthAndWeek = (issueWeekNum === weekFilter) || (estWeekNum === weekFilter);
       }
     }
 
@@ -283,7 +280,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     return (
       matchesSearch &&
-      matchesDate &&
+      matchesMonthAndWeek &&
       matchesStatus &&
       matchesClassification &&
       matchesLocation &&
@@ -345,53 +342,63 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Baris 2: Filters Selari Termasuk Tab Date Pintar */}
+        {/* Baris 2: Filters Grid */}
         <div 
           style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
             gap: '8px',
             alignItems: 'end'
           }}
         >
-          {/* TAB DATE PINTAR (DAY, WEEK, MONTH DALAM SATU TEMPAT) */}
+          {/* TAB GABUNGAN: MONTH & WEEK (1 to 4/5) */}
           <div style={{ minWidth: '0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', whiteSpace: 'nowrap' }}>
-                📅 Date:
+                🗓️ Month & Week:
               </label>
-              {/* Pilihan sama ada tapis mengikut Hari, Minggu (Week), atau Bulan (Month) */}
+              {/* Dropdown Week aktif jika Month telah dipilih */}
               <select
-                value={dateScope}
-                onChange={(e) => setDateScope(e.target.value)}
+                value={weekFilter}
+                onChange={(e) => setWeekFilter(e.target.value)}
+                disabled={!monthFilter}
                 style={{ 
                   fontSize: '10px', 
                   padding: '1px 3px', 
                   borderRadius: '3px', 
                   border: '1px solid #0d3b66', 
-                  backgroundColor: '#f0f4f8', 
-                  color: '#0d3b66',
+                  backgroundColor: monthFilter ? '#f0f4f8' : '#f1f5f9', 
+                  color: monthFilter ? '#0d3b66' : '#94a3b8',
                   fontWeight: 'bold',
-                  cursor: 'pointer' 
+                  cursor: monthFilter ? 'pointer' : 'not-allowed' 
                 }}
               >
-                <option value="day">Day</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
+                <option value="All">All Weeks</option>
+                <option value="1">Week 1 (1-7)</option>
+                <option value="2">Week 2 (8-14)</option>
+                <option value="3">Week 3 (15-21)</option>
+                <option value="4">Week 4 (22-28)</option>
+                <option value="5">Week 5 (29+)</option>
               </select>
             </div>
             
             <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
               <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                type="month"
+                value={monthFilter}
+                onChange={(e) => {
+                  setMonthFilter(e.target.value);
+                  if (!e.target.value) setWeekFilter('All');
+                }}
                 style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', boxSizing: 'border-box', cursor: 'pointer' }}
               />
-              {selectedDate && (
+              {monthFilter && (
                 <button
-                  onClick={() => setSelectedDate('')}
-                  title="Clear Date"
+                  onClick={() => {
+                    setMonthFilter('');
+                    setWeekFilter('All');
+                  }}
+                  title="Clear Month & Week"
                   style={{ backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '5px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}
                 >
                   ✕
