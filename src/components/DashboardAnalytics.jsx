@@ -28,6 +28,7 @@ export default function DashboardAnalytics() {
   
   const currentMonth = new Date().getMonth() + 1;
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selectedWeek, setSelectedWeek] = useState('all'); // 'all' | '1' | '2' | '3' | '4' | '5'
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
 
   // Penapis Kumpulan (Group Filter)
@@ -58,6 +59,11 @@ export default function DashboardAnalytics() {
     }
     loadData();
   }, []);
+
+  // Helper untuk menentukan minggu ke berapa dalam bulan (1 - 5)
+  const getWeekOfMonth = (dayNumber) => {
+    return String(Math.min(5, Math.ceil(dayNumber / 7)));
+  };
 
   const processDashboard = useCallback(() => {
     if (!rawIssues.length) {
@@ -105,8 +111,15 @@ export default function DashboardAnalytics() {
 
       if (filterMode === 'custom') {
         const isYearMatch = year === Number(selectedYear);
-        if (selectedMonth === 'all') return isYearMatch;
-        return isYearMatch && month === Number(selectedMonth);
+        const isMonthMatch = selectedMonth === 'all' || month === Number(selectedMonth);
+        
+        let isWeekMatch = true;
+        if (selectedWeek !== 'all') {
+          const issueWeekNum = getWeekOfMonth(day);
+          isWeekMatch = issueWeekNum === selectedWeek;
+        }
+
+        return isYearMatch && isMonthMatch && isWeekMatch;
       }
 
       return true;
@@ -220,7 +233,7 @@ export default function DashboardAnalytics() {
       }))
     );
 
-  }, [rawIssues, filterMode, timeRange, selectedMonth, selectedYear, selectedGroup, selectedClassification]);
+  }, [rawIssues, filterMode, timeRange, selectedMonth, selectedWeek, selectedYear, selectedGroup, selectedClassification]);
 
   useEffect(() => {
     processDashboard();
@@ -277,19 +290,24 @@ export default function DashboardAnalytics() {
           {/* Date Filter Modes */}
           <select
             value={filterMode}
-            onChange={(e) => setFilterMode(e.target.value)}
-            style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66' }}
+            onChange={(e) => {
+              setFilterMode(e.target.value);
+              if (e.target.value !== 'custom') {
+                setSelectedWeek('all');
+              }
+            }}
+            style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66', backgroundColor: '#fff' }}
           >
             <option value="all">All Time</option>
             <option value="preset">Quick Range</option>
-            <option value="custom">Specific Month & Year</option>
+            <option value="custom">Specific Week, Month & Year</option>
           </select>
 
           {filterMode === 'preset' && (
             <select 
               value={timeRange} 
               onChange={(e) => setTimeRange(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66' }}
+              style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66', backgroundColor: '#fff' }}
             >
               <option value="day">Today</option>
               <option value="week">Past 7 Days</option>
@@ -300,10 +318,11 @@ export default function DashboardAnalytics() {
 
           {filterMode === 'custom' && (
             <>
+              {/* Month Dropdown */}
               <select
                 value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66' }}
+                onChange={(e) => setSelectedMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66', backgroundColor: '#fff' }}
               >
                 <option value="all">All Months</option>
                 {MONTHS.map((m) => (
@@ -311,10 +330,25 @@ export default function DashboardAnalytics() {
                 ))}
               </select>
 
+              {/* Week Dropdown */}
+              <select
+                value={selectedWeek}
+                onChange={(e) => setSelectedWeek(e.target.value)}
+                style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66', backgroundColor: '#fff' }}
+              >
+                <option value="all">All Weeks</option>
+                <option value="1">Week 1 (1-7)</option>
+                <option value="2">Week 2 (8-14)</option>
+                <option value="3">Week 3 (15-21)</option>
+                <option value="4">Week 4 (22-28)</option>
+                <option value="5">Week 5 (29+)</option>
+              </select>
+
+              {/* Year Dropdown */}
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
-                style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66' }}
+                style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66', backgroundColor: '#fff' }}
               >
                 {YEARS.map((y) => (
                   <option key={y} value={y}>{y}</option>
