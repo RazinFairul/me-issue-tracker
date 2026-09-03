@@ -6,10 +6,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Filter States
+  // Filter States (Gaya Analytics: Month, Week, Year Dropdowns)
   const [searchTerm, setSearchTerm] = useState('');
-  const [monthFilter, setMonthFilter] = useState(''); // Format: "YYYY-MM"
-  const [weekFilter, setWeekFilter] = useState('All'); // 'All' | '1' | '2' | '3' | '4' | '5'
+  const [monthFilter, setMonthFilter] = useState('All'); // 'All' | '01'..'12'
+  const [weekFilter, setWeekFilter] = useState('All');   // 'All' | '1'..'5'
+  const [yearFilter, setYearFilter] = useState('All');   // 'All' | '2026'..
   const [statusFilter, setStatusFilter] = useState('All');
   const [classificationFilter, setClassificationFilter] = useState('All');
   const [locationFilter, setLocationFilter] = useState('All');
@@ -27,6 +28,21 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [newStatus, setNewStatus] = useState('Open');
   const [progressNote, setProgressNote] = useState('');
   const [updating, setUpdating] = useState(false);
+
+  const monthsList = [
+    { value: '01', label: 'January' },
+    { value: '02', label: 'February' },
+    { value: '03', label: 'March' },
+    { value: '04', label: 'April' },
+    { value: '05', label: 'May' },
+    { value: '06', label: 'June' },
+    { value: '07', label: 'July' },
+    { value: '08', label: 'August' },
+    { value: '09', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' },
+  ];
 
   useEffect(() => {
     const getCurrentUser = async () => {
@@ -54,6 +70,20 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   useEffect(() => {
     fetchIssues();
   }, [refreshTrigger]);
+
+  // Ekstrak tahun secara dinamik dari data isu
+  const uniqueYears = useMemo(() => {
+    const years = new Set();
+    issues.forEach((i) => {
+      const raw = i.date_time || i.created_at;
+      if (raw) {
+        const yr = raw.split('T')[0].split('-')[0];
+        if (yr && yr.length === 4) years.add(yr);
+      }
+    });
+    if (years.size === 0) years.add(new Date().getFullYear().toString());
+    return Array.from(years).sort().reverse();
+  }, [issues]);
 
   const uniqueLocations = useMemo(() => {
     return Array.from(new Set(issues.map((i) => i.location).filter(Boolean))).sort();
@@ -195,7 +225,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setUpdating(false);
   };
 
-  // Helper untuk menentukan Week ke berapa dalam bulan (Week 1 - Week 5)
+  // Helper untuk menentukan Week dalam bulan (1 - 5)
   const getWeekOfMonth = (dateString) => {
     if (!dateString) return null;
     const dateObj = new Date(dateString);
@@ -204,7 +234,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return String(Math.min(5, Math.ceil(dayOfMonth / 7)));
   };
 
-  // Logik Penapisan
+  // Logik Penapisan Serentak
   const filteredIssues = issues.filter((issue) => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
@@ -220,25 +250,34 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     const issueDateRaw = issue.date_time || issue.created_at;
     const estClosingRaw = issue.estimated_closing;
+    const issueDateOnly = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
+    const estDateOnly = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
 
-    // Filter mengikut Bulan & Minggu
-    let matchesMonthAndWeek = true;
-    if (monthFilter) {
-      const issueDateOnly = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
-      const estDateOnly = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
-
-      const issueInMonth = issueDateOnly.slice(0, 7) === monthFilter;
-      const estInMonth = estDateOnly.slice(0, 7) === monthFilter;
-
-      if (!issueInMonth && !estInMonth) {
-        matchesMonthAndWeek = false;
-      } else if (weekFilter !== 'All') {
-        const issueWeekNum = issueInMonth ? getWeekOfMonth(issueDateOnly) : null;
-        const estWeekNum = estInMonth ? getWeekOfMonth(estDateOnly) : null;
-        matchesMonthAndWeek = (issueWeekNum === weekFilter) || (estWeekNum === weekFilter);
-      }
+    // Filter Year
+    let matchesYear = true;
+    if (yearFilter !== 'All') {
+      const issueYear = issueDateOnly ? issueDateOnly.split('-')[0] : '';
+      const estYear = estDateOnly ? estDateOnly.split('-')[0] : '';
+      matchesYear = issueYear === yearFilter || estYear === yearFilter;
     }
 
+    // Filter Month
+    let matchesMonth = true;
+    if (monthFilter !== 'All') {
+      const issueMonth = issueDateOnly ? issueDateOnly.split('-')[1] : '';
+      const estMonth = estDateOnly ? estDateOnly.split('-')[1] : '';
+      matchesMonth = issueMonth === monthFilter || estMonth === monthFilter;
+    }
+
+    // Filter Week
+    let matchesWeek = true;
+    if (weekFilter !== 'All') {
+      const issueWeekNum = issueDateOnly ? getWeekOfMonth(issueDateOnly) : null;
+      const estWeekNum = estDateOnly ? getWeekOfMonth(estDateOnly) : null;
+      matchesWeek = issueWeekNum === weekFilter || estWeekNum === weekFilter;
+    }
+
+    // Filter Status
     let matchesStatus = true;
     if (statusFilter !== 'All') {
       if (statusFilter === 'Closed') {
@@ -279,7 +318,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     return (
       matchesSearch &&
-      matchesMonthAndWeek &&
+      matchesYear &&
+      matchesMonth &&
+      matchesWeek &&
       matchesStatus &&
       matchesClassification &&
       matchesLocation &&
@@ -341,46 +382,33 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Baris 2: Filters Grid (Kemas dan Tidak Bertindih) */}
+        {/* Baris 2: Dropdowns Grid Ala Dashboard Analytics */}
         <div 
           style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
-            gap: '10px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', 
+            gap: '8px',
             alignItems: 'end'
           }}
         >
-          {/* 1. Month Filter */}
+          {/* 1. Month Dropdown */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               🗓️ Month:
             </label>
-            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-              <input
-                type="month"
-                value={monthFilter}
-                onChange={(e) => {
-                  setMonthFilter(e.target.value);
-                  if (!e.target.value) setWeekFilter('All');
-                }}
-                style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', boxSizing: 'border-box', cursor: 'pointer' }}
-              />
-              {monthFilter && (
-                <button
-                  onClick={() => {
-                    setMonthFilter('');
-                    setWeekFilter('All');
-                  }}
-                  title="Clear Month"
-                  style={{ backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '5px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+            <select
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
+            >
+              <option value="All">All Months</option>
+              {monthsList.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
           </div>
 
-          {/* 2. Week Filter (Aktif bila Month dipilih) */}
+          {/* 2. Week Dropdown */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📆 Week:
@@ -388,18 +416,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             <select
               value={weekFilter}
               onChange={(e) => setWeekFilter(e.target.value)}
-              disabled={!monthFilter}
-              style={{ 
-                width: '100%', 
-                padding: '6px 4px', 
-                borderRadius: '5px', 
-                border: '1px solid #ccc', 
-                fontSize: '11px', 
-                backgroundColor: monthFilter ? '#fff' : '#f1f5f9', 
-                color: monthFilter ? '#000' : '#94a3b8',
-                boxSizing: 'border-box', 
-                cursor: monthFilter ? 'pointer' : 'not-allowed' 
-              }}
+              style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
             >
               <option value="All">All Weeks</option>
               <option value="1">Week 1 (1-7)</option>
@@ -410,7 +427,24 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 3. Status */}
+          {/* 3. Year Dropdown */}
+          <div style={{ minWidth: '0' }}>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+              📅 Year:
+            </label>
+            <select
+              value={yearFilter}
+              onChange={(e) => setYearFilter(e.target.value)}
+              style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
+            >
+              <option value="All">All Years</option>
+              {uniqueYears.map((yr) => (
+                <option key={yr} value={yr}>{yr}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Status */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📌 Status:
@@ -427,7 +461,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 4. Class */}
+          {/* 5. Class */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               🏷️ Class:
@@ -444,7 +478,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 5. Location */}
+          {/* 6. Location */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📍 Location:
@@ -461,7 +495,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 6. Group */}
+          {/* 7. Group */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👥 Group:
@@ -479,7 +513,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 7. Name */}
+          {/* 8. Name */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 Name:
@@ -496,7 +530,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 8. PIC */}
+          {/* 9. PIC */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 PIC:
