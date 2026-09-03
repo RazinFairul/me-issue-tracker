@@ -8,8 +8,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateMode, setDateMode] = useState('day'); // 'day' | 'week' | 'month'
   const [dateFilter, setDateFilter] = useState('');
+  const [weekFilter, setWeekFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [classificationFilter, setClassificationFilter] = useState('All');
   const [locationFilter, setLocationFilter] = useState('All');
@@ -55,7 +56,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     fetchIssues();
   }, [refreshTrigger]);
 
-  // Ekstrak senarai unik secara dinamik untuk dropdown
   const uniqueLocations = useMemo(() => {
     return Array.from(new Set(issues.map((i) => i.location).filter(Boolean))).sort();
   }, [issues]);
@@ -196,8 +196,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setUpdating(false);
   };
 
-  // Helper untuk mendapatkan format ISO Week (YYYY-Www)
+  // Helper untuk ISO Week
   const getISOWeekString = (dateObj) => {
+    if (!dateObj || isNaN(dateObj.getTime())) return '';
     const d = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
     const dayNum = d.getUTCDay() || 7;
     d.setUTCDate(d.getUTCDate() + 4 - dayNum);
@@ -220,24 +221,31 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       (issue.pic_name && issue.pic_name.toLowerCase().includes(searchLower)) ||
       (issue.pic && issue.pic.toLowerCase().includes(searchLower));
 
+    const issueDateRaw = issue.date_time || issue.created_at;
+    const estClosingRaw = issue.estimated_closing;
+
+    // Filter Date (Harian)
     let matchesDate = true;
     if (dateFilter) {
-      const issueDateRaw = issue.date_time || issue.created_at;
-      const estClosingRaw = issue.estimated_closing;
+      const issueFormattedDate = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
+      const estClosingFormattedDate = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
+      matchesDate = issueFormattedDate === dateFilter || estClosingFormattedDate === dateFilter;
+    }
 
-      if (dateMode === 'day') {
-        const issueFormattedDate = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
-        const estClosingFormattedDate = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
-        matchesDate = issueFormattedDate === dateFilter || estClosingFormattedDate === dateFilter;
-      } else if (dateMode === 'month') {
-        const issueMonth = issueDateRaw ? issueDateRaw.slice(0, 7) : '';
-        const estMonth = estClosingRaw ? estClosingRaw.slice(0, 7) : '';
-        matchesDate = issueMonth === dateFilter || estMonth === dateFilter;
-      } else if (dateMode === 'week') {
-        const issueWeek = issueDateRaw ? getISOWeekString(new Date(issueDateRaw)) : '';
-        const estWeek = estClosingRaw ? getISOWeekString(new Date(estClosingRaw)) : '';
-        matchesDate = issueWeek === dateFilter || estWeek === dateFilter;
-      }
+    // Filter Week
+    let matchesWeek = true;
+    if (weekFilter) {
+      const issueWeek = issueDateRaw ? getISOWeekString(new Date(issueDateRaw)) : '';
+      const estWeek = estClosingRaw ? getISOWeekString(new Date(estClosingRaw)) : '';
+      matchesWeek = issueWeek === weekFilter || estWeek === weekFilter;
+    }
+
+    // Filter Month
+    let matchesMonth = true;
+    if (monthFilter) {
+      const issueMonth = issueDateRaw ? issueDateRaw.slice(0, 7) : '';
+      const estMonth = estClosingRaw ? estClosingRaw.slice(0, 7) : '';
+      matchesMonth = issueMonth === monthFilter || estMonth === monthFilter;
     }
 
     let matchesStatus = true;
@@ -278,7 +286,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       matchesPic = combinedPic === picFilter;
     }
 
-    return matchesSearch && matchesDate && matchesStatus && matchesClassification && matchesLocation && matchesGroup && matchesName && matchesPic;
+    return matchesSearch && matchesDate && matchesWeek && matchesMonth && matchesStatus && matchesClassification && matchesLocation && matchesGroup && matchesName && matchesPic;
   });
 
   return (
@@ -333,37 +341,23 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Baris 2: Dropdown Filters Selari */}
+        {/* Baris 2: Filters Selari Termasuk Week & Month */}
         <div 
           style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
             gap: '8px',
             alignItems: 'end'
           }}
         >
-          {/* 1. Dynamic Date Filter (Day / Week / Month) */}
+          {/* 1. Daily Date */}
           <div style={{ minWidth: '0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', whiteSpace: 'nowrap' }}>
-                📅 Filter By:
-              </label>
-              <select
-                value={dateMode}
-                onChange={(e) => {
-                  setDateMode(e.target.value);
-                  setDateFilter('');
-                }}
-                style={{ fontSize: '10px', padding: '1px 3px', borderRadius: '3px', border: '1px solid #ccc', backgroundColor: '#f8fafc', cursor: 'pointer' }}
-              >
-                <option value="day">Day</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
-              </select>
-            </div>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+              📅 Date:
+            </label>
             <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
               <input
-                type={dateMode === 'day' ? 'date' : dateMode === 'week' ? 'week' : 'month'}
+                type="date"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
                 style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', boxSizing: 'border-box', cursor: 'pointer' }}
@@ -380,7 +374,55 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </div>
           </div>
 
-          {/* 2. Status */}
+          {/* 2. Week Filter */}
+          <div style={{ minWidth: '0' }}>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+              📆 Week:
+            </label>
+            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+              <input
+                type="week"
+                value={weekFilter}
+                onChange={(e) => setWeekFilter(e.target.value)}
+                style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', boxSizing: 'border-box', cursor: 'pointer' }}
+              />
+              {weekFilter && (
+                <button
+                  onClick={() => setWeekFilter('')}
+                  title="Clear Week"
+                  style={{ backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '5px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 3. Month Filter */}
+          <div style={{ minWidth: '0' }}>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+              🗓️ Month:
+            </label>
+            <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+              <input
+                type="month"
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', boxSizing: 'border-box', cursor: 'pointer' }}
+              />
+              {monthFilter && (
+                <button
+                  onClick={() => setMonthFilter('')}
+                  title="Clear Month"
+                  style={{ backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '5px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 4. Status */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📌 Status:
@@ -397,7 +439,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 3. Class */}
+          {/* 5. Class */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               🏷️ Class:
@@ -414,7 +456,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 4. Location */}
+          {/* 6. Location */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📍 Location:
@@ -431,7 +473,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 5. Group */}
+          {/* 7. Group */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👥 Group:
@@ -449,7 +491,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 6. Name */}
+          {/* 8. Name */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 Name:
@@ -466,7 +508,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 7. PIC */}
+          {/* 9. PIC */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 PIC:
