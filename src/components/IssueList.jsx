@@ -8,7 +8,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
-  const [monthFilter, setMonthFilter] = useState(''); // Format: "YYYY-MM" (cth: "2026-09")
+  const [monthFilter, setMonthFilter] = useState(''); // Format: "YYYY-MM"
   const [weekFilter, setWeekFilter] = useState('All'); // 'All' | '1' | '2' | '3' | '4' | '5'
   const [statusFilter, setStatusFilter] = useState('All');
   const [classificationFilter, setClassificationFilter] = useState('All');
@@ -195,13 +195,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setUpdating(false);
   };
 
-  // Helper untuk menentukan Week ke berapa dalam bulan (1 - 5) berdasarkan hari bulan
+  // Helper untuk menentukan Week ke berapa dalam bulan (Week 1 - Week 5)
   const getWeekOfMonth = (dateString) => {
     if (!dateString) return null;
     const dateObj = new Date(dateString);
     if (isNaN(dateObj.getTime())) return null;
     const dayOfMonth = dateObj.getDate();
-    // Week 1: 1-7, Week 2: 8-14, Week 3: 15-21, Week 4: 22-28, Week 5: 29-31
     return String(Math.min(5, Math.ceil(dayOfMonth / 7)));
   };
 
@@ -222,7 +221,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const issueDateRaw = issue.date_time || issue.created_at;
     const estClosingRaw = issue.estimated_closing;
 
-    // Filter Month & Week
+    // Filter mengikut Bulan & Minggu
     let matchesMonthAndWeek = true;
     if (monthFilter) {
       const issueDateOnly = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
@@ -342,46 +341,20 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Baris 2: Filters Grid */}
+        {/* Baris 2: Filters Grid (Kemas dan Tidak Bertindih) */}
         <div 
           style={{ 
             display: 'grid', 
             gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
-            gap: '8px',
+            gap: '10px',
             alignItems: 'end'
           }}
         >
-          {/* TAB GABUNGAN: MONTH & WEEK (1 to 4/5) */}
+          {/* 1. Month Filter */}
           <div style={{ minWidth: '0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', whiteSpace: 'nowrap' }}>
-                🗓️ Month & Week:
-              </label>
-              {/* Dropdown Week aktif jika Month telah dipilih */}
-              <select
-                value={weekFilter}
-                onChange={(e) => setWeekFilter(e.target.value)}
-                disabled={!monthFilter}
-                style={{ 
-                  fontSize: '10px', 
-                  padding: '1px 3px', 
-                  borderRadius: '3px', 
-                  border: '1px solid #0d3b66', 
-                  backgroundColor: monthFilter ? '#f0f4f8' : '#f1f5f9', 
-                  color: monthFilter ? '#0d3b66' : '#94a3b8',
-                  fontWeight: 'bold',
-                  cursor: monthFilter ? 'pointer' : 'not-allowed' 
-                }}
-              >
-                <option value="All">All Weeks</option>
-                <option value="1">Week 1 (1-7)</option>
-                <option value="2">Week 2 (8-14)</option>
-                <option value="3">Week 3 (15-21)</option>
-                <option value="4">Week 4 (22-28)</option>
-                <option value="5">Week 5 (29+)</option>
-              </select>
-            </div>
-            
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+              🗓️ Month:
+            </label>
             <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
               <input
                 type="month"
@@ -398,7 +371,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                     setMonthFilter('');
                     setWeekFilter('All');
                   }}
-                  title="Clear Month & Week"
+                  title="Clear Month"
                   style={{ backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '5px 6px', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}
                 >
                   ✕
@@ -407,7 +380,37 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </div>
           </div>
 
-          {/* Status */}
+          {/* 2. Week Filter (Aktif bila Month dipilih) */}
+          <div style={{ minWidth: '0' }}>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+              📆 Week:
+            </label>
+            <select
+              value={weekFilter}
+              onChange={(e) => setWeekFilter(e.target.value)}
+              disabled={!monthFilter}
+              style={{ 
+                width: '100%', 
+                padding: '6px 4px', 
+                borderRadius: '5px', 
+                border: '1px solid #ccc', 
+                fontSize: '11px', 
+                backgroundColor: monthFilter ? '#fff' : '#f1f5f9', 
+                color: monthFilter ? '#000' : '#94a3b8',
+                boxSizing: 'border-box', 
+                cursor: monthFilter ? 'pointer' : 'not-allowed' 
+              }}
+            >
+              <option value="All">All Weeks</option>
+              <option value="1">Week 1 (1-7)</option>
+              <option value="2">Week 2 (8-14)</option>
+              <option value="3">Week 3 (15-21)</option>
+              <option value="4">Week 4 (22-28)</option>
+              <option value="5">Week 5 (29+)</option>
+            </select>
+          </div>
+
+          {/* 3. Status */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📌 Status:
@@ -424,7 +427,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* Class */}
+          {/* 4. Class */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               🏷️ Class:
@@ -441,7 +444,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* Location */}
+          {/* 5. Location */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📍 Location:
@@ -458,7 +461,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* Group */}
+          {/* 6. Group */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👥 Group:
@@ -476,7 +479,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* Name */}
+          {/* 7. Name */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 Name:
@@ -493,7 +496,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* PIC */}
+          {/* 8. PIC */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 PIC:
