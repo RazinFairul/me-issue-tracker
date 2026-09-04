@@ -150,7 +150,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             <option value="" disabled hidden>Choose Group</option>
             <option value="Assembly Line" style={{ color: '#000' }}>Assembly Line</option>
             <option value="Test Line" style={{ color: '#000' }}>Test Line</option>
-            <option value="Transmission" style={{ color: '#000' }}>Transmission</option>
+            <option value="Transmission Line" style={{ color: '#000' }}>Transmission</option>
             <option value="IT" style={{ color: '#000' }}>IT</option>
           </select>
         </div>
