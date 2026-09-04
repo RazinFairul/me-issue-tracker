@@ -265,13 +265,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     let matchesPeriod = true;
     if (periodFilter !== 'All') {
       if (periodFilter.includes('-W')) {
-        // Tapis mengikut Minggu spesifik (cth: '2026-09-W2')
         const [targetMonth, targetWeek] = periodFilter.split('-W');
         const issueWeekNum = issueDateOnly.slice(0, 7) === targetMonth ? getWeekOfMonth(issueDateOnly) : null;
         const estWeekNum = estDateOnly.slice(0, 7) === targetMonth ? getWeekOfMonth(estDateOnly) : null;
         matchesPeriod = (issueWeekNum === targetWeek) || (estWeekNum === targetWeek);
       } else {
-        // Tapis seluruh bulan (cth: '2026-09')
         matchesPeriod = issueDateOnly.slice(0, 7) === periodFilter || estDateOnly.slice(0, 7) === periodFilter;
       }
     }
@@ -326,12 +324,96 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     );
   });
 
+  // FUNGSI EXPORT KE EXCEL (CSV UTF-8)
+  const handleExportToExcel = () => {
+    if (filteredIssues.length === 0) {
+      alert('No data available to export with current filters.');
+      return;
+    }
+
+    const headers = [
+      'Issue ID',
+      'Date & Time',
+      'Classification',
+      'Issue Title',
+      'Description',
+      'Group',
+      'Reported By',
+      'Location / Station',
+      'PIC',
+      'Est. Closing Date',
+      'Status',
+      'Progress Notes'
+    ];
+
+    const escapeCsv = (str) => {
+      if (str === null || str === undefined) return '""';
+      const text = String(str).replace(/"/g, '""');
+      return `"${text}"`;
+    };
+
+    const rows = filteredIssues.map((i) => [
+      escapeCsv(i.id),
+      escapeCsv(i.date_time || i.created_at || ''),
+      escapeCsv(i.classification || ''),
+      escapeCsv(i.what_issue || ''),
+      escapeCsv(i.description || ''),
+      escapeCsv(i.group_name || ''),
+      escapeCsv(i.staff_name || i.staff_id || ''),
+      escapeCsv(i.location || ''),
+      escapeCsv(i.pic_name || i.pic || ''),
+      escapeCsv(i.estimated_closing ? i.estimated_closing.split('T')[0] : ''),
+      escapeCsv(i.status || 'Open'),
+      escapeCsv(i.progress_note || '')
+    ]);
+
+    const csvContent = '\uFEFF' + [
+      headers.join(','),
+      ...rows.map((row) => row.join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    const today = new Date().toISOString().slice(0, 10);
+    const groupNameSanitized = groupFilter === 'All' ? 'All_Groups' : groupFilter.replace(/\s+/g, '_');
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Issues_${groupNameSanitized}_${today}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div style={{ padding: '10px 20px', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
       
-      {/* Header Bar */}
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '20px', backgroundColor: '#0d3b66', padding: '15px 20px', borderRadius: '8px', color: '#fff' }}>
-        <h2 style={{ margin: 0, fontSize: '22px', textAlign: 'center' }}>Issue List</h2>
+      {/* Header Bar dengan Butang Export to Excel */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', backgroundColor: '#0d3b66', padding: '15px 20px', borderRadius: '8px', color: '#fff', flexWrap: 'wrap', gap: '10px' }}>
+        <h2 style={{ margin: 0, fontSize: '22px' }}>Issue List</h2>
+
+        <button
+          onClick={handleExportToExcel}
+          style={{
+            backgroundColor: '#16a34a',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '8px 14px',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+          }}
+          title={`Export current list ${groupFilter !== 'All' ? `for ${groupFilter}` : ''} to Excel`}
+        >
+          📥 Export to Excel {groupFilter !== 'All' && `(${groupFilter})`}
+        </button>
       </div>
 
       {/* Search & Filter Section */}
