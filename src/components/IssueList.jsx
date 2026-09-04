@@ -8,7 +8,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   // Filter States - SATU DROPDOWN SAHAJA UNTUK PERIOD (MONTH & WEEK)
   const [searchTerm, setSearchTerm] = useState('');
-  const [periodFilter, setPeriodFilter] = useState('All'); // Contoh: 'All', '2026-09', '2026-09-W1'
+  const [periodFilter, setPeriodFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [classificationFilter, setClassificationFilter] = useState('All');
   const [locationFilter, setLocationFilter] = useState('All');
@@ -21,9 +21,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [newEstClosingDate, setNewEstClosingDate] = useState('');
   const [savingEstDate, setSavingEstDate] = useState(false);
 
-  // Update Progress & Status Modal
+  // Update Progress & Status Modal (Default terus kepada In Progress 1/4)
   const [selectedIssue, setSelectedIssue] = useState(null);
-  const [newStatus, setNewStatus] = useState('Open');
+  const [newStatus, setNewStatus] = useState('In Progress (1/4)');
   const [progressNote, setProgressNote] = useState('');
   const [updating, setUpdating] = useState(false);
 
@@ -63,7 +63,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return String(Math.min(5, Math.ceil(dayOfMonth / 7)));
   };
 
-  // Jana pilihan dropdown Month & Week secara dinamik daripada tarikh yang ada di pangkalan data
+  // Jana pilihan dropdown Month & Week secara dinamik daripada pangkalan data
   const periodOptions = useMemo(() => {
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
@@ -74,12 +74,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     issues.forEach((i) => {
       const raw = i.date_time || i.created_at;
       if (raw) {
-        const ym = raw.split('T')[0].slice(0, 7); // 'YYYY-MM'
+        const ym = raw.split('T')[0].slice(0, 7);
         if (ym.length === 7) monthsSet.add(ym);
       }
     });
 
-    // Masukkan bulan semasa jika tiada data langsung
     const nowYM = new Date().toISOString().slice(0, 7);
     monthsSet.add(nowYM);
 
@@ -210,10 +209,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       case 'Closed':
       case 'Completed':
       case 'Complete':
-        return { icon: '⚫', text: 'Closed', bg: '#16a34a', color: '#fff' };
-      case 'Open':
+        return { icon: '⚫', text: 'Closed (4/4)', bg: '#16a34a', color: '#fff' };
       default:
-        return { icon: '⚪', text: 'Open', bg: '#dc3545', color: '#fff' };
+        // Rekod yang tiada status atau masih 'Open' automatik dipaparkan sebagai 1/4
+        return { icon: '◔', text: 'In Progress (1/4)', bg: '#fd7e14', color: '#fff' };
     }
   };
 
@@ -261,7 +260,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const issueDateOnly = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
     const estDateOnly = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
 
-    // Logik Period (Satu Dropdown Sahaja)
+    // Logik Period
     let matchesPeriod = true;
     if (periodFilter !== 'All') {
       if (periodFilter.includes('-W')) {
@@ -274,12 +273,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       }
     }
 
+    // Logik Status (Open diserap ke dalam In Progress)
     let matchesStatus = true;
     if (statusFilter !== 'All') {
       if (statusFilter === 'Closed') {
         matchesStatus = issue.status === 'Closed' || issue.status === 'Completed' || issue.status === 'Complete';
       } else if (statusFilter === 'In Progress') {
-        matchesStatus = Boolean(issue.status && issue.status.includes('In Progress'));
+        matchesStatus = Boolean(issue.status && issue.status.includes('In Progress')) || issue.status === 'Open' || !issue.status;
       } else {
         matchesStatus = issue.status === statusFilter;
       }
@@ -324,7 +324,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     );
   });
 
-  // Mendapatkan label teks yang mudah dibaca bagi Period semasa
   const currentPeriodLabel = useMemo(() => {
     if (periodFilter === 'All') return 'All_Period';
     for (const opt of periodOptions) {
@@ -340,7 +339,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // FUNGSI EKSPORT KE EXCEL (CSV UTF-8) BY GROUP & BY MONTH/PERIOD
+  // FUNGSI EKSPORT KE EXCEL (CSV UTF-8)
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('Tiada data isu untuk dieksport dengan penapis semasa.');
@@ -368,20 +367,23 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       return `"${text}"`;
     };
 
-    const rows = filteredIssues.map((i) => [
-      escapeCsv(i.id),
-      escapeCsv(i.date_time || i.created_at || ''),
-      escapeCsv(i.classification || ''),
-      escapeCsv(i.what_issue || ''),
-      escapeCsv(i.description || ''),
-      escapeCsv(i.group_name || ''),
-      escapeCsv(i.staff_name || i.staff_id || ''),
-      escapeCsv(i.location || ''),
-      escapeCsv(i.pic_name || i.pic || ''),
-      escapeCsv(i.estimated_closing ? i.estimated_closing.split('T')[0] : ''),
-      escapeCsv(i.status || 'Open'),
-      escapeCsv(i.progress_note || '')
-    ]);
+    const rows = filteredIssues.map((i) => {
+      const exportStatus = (!i.status || i.status === 'Open') ? 'In Progress (1/4)' : i.status;
+      return [
+        escapeCsv(i.id),
+        escapeCsv(i.date_time || i.created_at || ''),
+        escapeCsv(i.classification || ''),
+        escapeCsv(i.what_issue || ''),
+        escapeCsv(i.description || ''),
+        escapeCsv(i.group_name || ''),
+        escapeCsv(i.staff_name || i.staff_id || ''),
+        escapeCsv(i.location || ''),
+        escapeCsv(i.pic_name || i.pic || ''),
+        escapeCsv(i.estimated_closing ? i.estimated_closing.split('T')[0] : ''),
+        escapeCsv(exportStatus),
+        escapeCsv(i.progress_note || '')
+      ];
+    });
 
     const csvContent = '\uFEFF' + [
       headers.join(','),
@@ -395,7 +397,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const today = new Date().toISOString().slice(0, 10);
     const groupLabel = groupFilter === 'All' ? 'All_Groups' : groupFilter.replace(/\s+/g, '_');
     
-    // Nama fail dinamik contoh: Issues_Transmission_Line_September_2026_2026-09-04.csv
     link.setAttribute('href', url);
     link.setAttribute('download', `Issues_${groupLabel}_${currentPeriodLabel}_${today}.csv`);
     document.body.appendChild(link);
@@ -407,7 +408,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   return (
     <div style={{ padding: '10px 20px', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
       
-      {/* Header Bar dengan Butang Export to Excel Dinamik */}
+      {/* Header Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', backgroundColor: '#0d3b66', padding: '15px 20px', borderRadius: '8px', color: '#fff', flexWrap: 'wrap', gap: '10px' }}>
         <h2 style={{ margin: 0, fontSize: '22px' }}>Issue List</h2>
 
@@ -482,7 +483,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Baris 2: Dropdowns Grid dengan Satu Period Dropdown Sahaja */}
+        {/* Baris 2: Dropdowns Grid */}
         <div 
           style={{ 
             display: 'grid', 
@@ -491,7 +492,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             alignItems: 'end'
           }}
         >
-          {/* 1. SATU PERIOD DROPDOWN (MONTH & WEEK SEKALIGUS) */}
+          {/* 1. Period */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               🗓️ Period (Month/Week):
@@ -526,7 +527,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 2. Status */}
+          {/* 2. Status (Tiada Pilihan Open) */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📌 Status:
@@ -537,7 +538,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
             >
               <option value="All">All Statuses</option>
-              <option value="Open">⚪ Open (0/4)</option>
               <option value="In Progress">◑ In Progress</option>
               <option value="Closed">⚫ Closed (4/4)</option>
             </select>
@@ -798,9 +798,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                         <button
                           onClick={() => {
                             setSelectedIssue(issue);
-                            const currentVal = issue.status === 'Completed' || issue.status === 'Complete' 
-                              ? 'Closed' 
-                              : (issue.status || 'Open');
+                            let currentVal = issue.status;
+                            if (!currentVal || currentVal === 'Open') currentVal = 'In Progress (1/4)';
+                            if (currentVal === 'Completed' || currentVal === 'Complete') currentVal = 'Closed';
                             setNewStatus(currentVal);
                             setProgressNote(issue.progress_note || '');
                           }}
@@ -829,7 +829,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         </div>
       )}
 
-      {/* Update Progress & Milestone Modal */}
+      {/* Update Progress & Milestone Modal (Pilihan Open Dibuang) */}
       {selectedIssue && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '90%', maxWidth: '440px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
@@ -846,7 +846,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   onChange={(e) => setNewStatus(e.target.value)}
                   style={{ width: '100%', padding: '9px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '13px', backgroundColor: '#fff' }}
                 >
-                  <option value="Open">⚪ Open (0/4)</option>
                   <option value="In Progress (1/4)">◔ In Progress (1/4)</option>
                   <option value="In Progress (2/4)">◑ In Progress (2/4)</option>
                   <option value="In Progress (3/4)">◕ In Progress (3/4)</option>
