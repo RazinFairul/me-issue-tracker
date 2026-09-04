@@ -568,7 +568,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               <option value="All">All Groups</option>
               <option value="Assembly Line">Assembly Line</option>
               <option value="Test Line">Test Line</option>
-              <option value="Transmission">Transmission</option>
+              <option value="Transmission Line">Transmission Line</option>
               <option value="IT">IT</option>
             </select>
           </div>
