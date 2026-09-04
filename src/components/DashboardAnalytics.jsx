@@ -37,8 +37,8 @@ export default function DashboardAnalytics() {
   // Power BI Cross-Filter
   const [selectedClassification, setSelectedClassification] = useState(null);
 
-  // States Paparan Data
-  const [stats, setStats] = useState({ total: 0, open: 0, inProgress: 0, closed: 0 });
+  // States Paparan Data (Tanpa Open)
+  const [stats, setStats] = useState({ total: 0, inProgress: 0, closed: 0 });
   const [statusData, setStatusData] = useState([]);
   const [locationData, setLocationData] = useState([]);
   const [classificationData, setClassificationData] = useState([]);
@@ -67,7 +67,7 @@ export default function DashboardAnalytics() {
 
   const processDashboard = useCallback(() => {
     if (!rawIssues.length) {
-      setStats({ total: 0, open: 0, inProgress: 0, closed: 0 });
+      setStats({ total: 0, inProgress: 0, closed: 0 });
       setStatusData([]);
       setLocationData([]);
       setClassificationData([]);
@@ -82,8 +82,8 @@ export default function DashboardAnalytics() {
     const dateAndGroupFiltered = rawIssues.filter((item) => {
       // Penapis Kumpulan
       if (selectedGroup !== 'all') {
-        const itemGroup = (item.group_name || '').trim();
-        if (itemGroup !== selectedGroup) return false;
+        const itemGroup = (item.group_name || '').trim().toLowerCase();
+        if (itemGroup !== selectedGroup.trim().toLowerCase()) return false;
       }
 
       // Penapis Masa
@@ -133,7 +133,6 @@ export default function DashboardAnalytics() {
         })
       : dateAndGroupFiltered;
 
-    let openCount = 0;
     let inProgressCount = 0;
     let closedCount = 0;
     const locationMap = {};
@@ -148,13 +147,15 @@ export default function DashboardAnalytics() {
     });
 
     fullyFiltered.forEach((item) => {
-      const status = (item.status || 'Open').trim().toLowerCase();
+      const status = (item.status || 'in progress').trim().toLowerCase();
       const isDone = status === 'closed' || status === 'close' || status === 'completed' || status === 'complete';
-      const isInProg = status === 'in progress' || status === 'in-progress' || status.includes('in progress');
 
-      if (isDone) closedCount++;
-      else if (isInProg) inProgressCount++;
-      else openCount++;
+      // Semua status bukan closed (termasuk In Progress 1/4, 2/4, 3/4 atau data legacy 'Open') dikira sebagai In Progress
+      if (isDone) {
+        closedCount++;
+      } else {
+        inProgressCount++;
+      }
 
       const loc = item.location ? item.location.toUpperCase() : 'UNKNOWN';
       locationMap[loc] = (locationMap[loc] || 0) + 1;
@@ -196,15 +197,13 @@ export default function DashboardAnalytics() {
 
     setStats({
       total: fullyFiltered.length,
-      open: openCount,
       inProgress: inProgressCount,
       closed: closedCount,
     });
 
     setStatusData([
-      { name: 'Open', value: openCount, color: '#dc3545' },
-      { name: 'In Progress', value: inProgressCount, color: '#ffc107' },
-      { name: 'Closed', value: closedCount, color: '#28a745' },
+      { name: 'In Progress', value: inProgressCount, color: '#f59e0b' },
+      { name: 'Closed', value: closedCount, color: '#16a34a' },
     ]);
 
     setLocationData(
@@ -220,8 +219,8 @@ export default function DashboardAnalytics() {
     );
 
     setAgingData([
-      { range: '< 3 Days', count: agingUnder3, fill: '#28a745' },
-      { range: '3 - 7 Days', count: aging3to7, fill: '#ffc107' },
+      { range: '< 3 Days', count: agingUnder3, fill: '#16a34a' },
+      { range: '3 - 7 Days', count: aging3to7, fill: '#f59e0b' },
       { range: '> 7 Days (Critical)', count: agingOver7, fill: '#dc3545' },
     ]);
 
@@ -263,6 +262,7 @@ export default function DashboardAnalytics() {
 
   const displayedLocationData = showAllLocations ? locationData : locationData.slice(0, 20);
   const chartWidth = showAllLocations ? Math.max(1000, locationData.length * 45) : '100%';
+  const closeRate = stats.total > 0 ? ((stats.closed / stats.total) * 100).toFixed(1) : 0;
 
   return (
     <div style={{ padding: '20px', maxWidth: '1300px', margin: '0 auto', fontFamily: 'Arial, sans-serif', backgroundColor: '#f4f6f9', minHeight: '100vh' }}>
@@ -283,7 +283,9 @@ export default function DashboardAnalytics() {
             <option value="all">All Groups</option>
             <option value="Assembly Line">Assembly Line</option>
             <option value="Test Line">Test Line</option>
-            <option value="Transmission">Transmission</option>
+            <option value="Transmission Line">Transmission Line</option>
+            <option value="Hot Test">Hot Test</option>
+            <option value="Engine Assembly">Engine Assembly</option>
             <option value="IT">IT</option>
           </select>
 
@@ -376,31 +378,34 @@ export default function DashboardAnalytics() {
         <p style={{ textAlign: 'center', padding: '40px' }}>Loading analytics data...</p>
       ) : (
         <>
-          {/* KPI Summary Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+          {/* KPI Summary Cards (Kini 3 Kad Utama Tanpa Open) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', marginBottom: '25px' }}>
             <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #0d3b66', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
               <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>
                 TOTAL ISSUES {selectedGroup !== 'all' && `(${selectedGroup})`}
               </span>
               <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#0d3b66' }}>{stats.total}</h2>
             </div>
-            <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #dc3545', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
-              <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>OPEN ISSUES</span>
-              <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#dc3545' }}>{stats.open}</h2>
-            </div>
-            <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #ffc107', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+            
+            <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #f59e0b', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
               <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>IN PROGRESS</span>
-              <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#d39e00' }}>{stats.inProgress}</h2>
+              <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#d97706' }}>{stats.inProgress}</h2>
             </div>
-            <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #28a745', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
-              <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>CLOSED</span>
-              <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#28a745' }}>{stats.closed}</h2>
+            
+            <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #16a34a', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>CLOSED</span>
+                <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold', backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px' }}>
+                  {closeRate}% Rate
+                </span>
+              </div>
+              <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#16a34a' }}>{stats.closed}</h2>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             
-            {/* Row 1: Pie Chart (Percentage %) + Classification Slicer */}
+            {/* Row 1: Pie Chart (Status Distribution) + Classification Slicer Bar Chart */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
               
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
@@ -461,7 +466,7 @@ export default function DashboardAnalytics() {
                         {classificationData.map((entry, idx) => (
                           <Cell 
                             key={`cls-${idx}`} 
-                            fill={selectedClassification === entry.classification ? '#0d3b66' : '#6b7280'} 
+                            fill={selectedClassification === entry.classification ? '#0d3b66' : '#64748b'} 
                           />
                         ))}
                       </Bar>
@@ -487,8 +492,8 @@ export default function DashboardAnalytics() {
                       <YAxis allowDecimals={false} />
                       <Tooltip />
                       <Legend />
-                      <Line type="monotone" dataKey="Created" stroke="#dc3545" strokeWidth={2} dot={{ r: 3 }} />
-                      <Line type="monotone" dataKey="Closed" stroke="#28a745" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="Created" stroke="#0284c7" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="Closed" stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
