@@ -324,10 +324,26 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     );
   });
 
-  // FUNGSI EXPORT KE EXCEL (CSV UTF-8)
+  // Mendapatkan label teks yang mudah dibaca bagi Period semasa
+  const currentPeriodLabel = useMemo(() => {
+    if (periodFilter === 'All') return 'All_Period';
+    for (const opt of periodOptions) {
+      if (opt.key === periodFilter) {
+        return opt.label.replace(/\s+/g, '_');
+      }
+      for (const w of opt.weeks) {
+        if (w.value === periodFilter) {
+          return w.label.replace(/[^a-zA-Z0-9]/g, '_');
+        }
+      }
+    }
+    return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
+  }, [periodFilter, periodOptions]);
+
+  // FUNGSI EKSPORT KE EXCEL (CSV UTF-8) BY GROUP & BY MONTH/PERIOD
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
-      alert('No data available to export with current filters.');
+      alert('Tiada data isu untuk dieksport dengan penapis semasa.');
       return;
     }
 
@@ -377,10 +393,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const link = document.createElement('a');
     
     const today = new Date().toISOString().slice(0, 10);
-    const groupNameSanitized = groupFilter === 'All' ? 'All_Groups' : groupFilter.replace(/\s+/g, '_');
+    const groupLabel = groupFilter === 'All' ? 'All_Groups' : groupFilter.replace(/\s+/g, '_');
     
+    // Nama fail dinamik contoh: Issues_Transmission_Line_September_2026_2026-09-04.csv
     link.setAttribute('href', url);
-    link.setAttribute('download', `Issues_${groupNameSanitized}_${today}.csv`);
+    link.setAttribute('download', `Issues_${groupLabel}_${currentPeriodLabel}_${today}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -390,7 +407,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   return (
     <div style={{ padding: '10px 20px', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
       
-      {/* Header Bar dengan Butang Export to Excel */}
+      {/* Header Bar dengan Butang Export to Excel Dinamik */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', backgroundColor: '#0d3b66', padding: '15px 20px', borderRadius: '8px', color: '#fff', flexWrap: 'wrap', gap: '10px' }}>
         <h2 style={{ margin: 0, fontSize: '22px' }}>Issue List</h2>
 
@@ -410,9 +427,14 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             gap: '6px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
           }}
-          title={`Export current list ${groupFilter !== 'All' ? `for ${groupFilter}` : ''} to Excel`}
+          title="Klik untuk muat turun fail Excel berdasarkan pilihan Group & Month semasa"
         >
-          📥 Export to Excel {groupFilter !== 'All' && `(${groupFilter})`}
+          📥 Export to Excel 
+          {(groupFilter !== 'All' || periodFilter !== 'All') && (
+            <span style={{ fontSize: '11px', opacity: 0.9 }}>
+              ({groupFilter !== 'All' ? groupFilter : 'All Groups'} | {periodFilter !== 'All' ? currentPeriodLabel.replace(/_/g, ' ') : 'All Time'})
+            </span>
+          )}
         </button>
       </div>
 
@@ -472,7 +494,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           {/* 1. SATU PERIOD DROPDOWN (MONTH & WEEK SEKALIGUS) */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-              🗓️ Period:
+              🗓️ Period (Month/Week):
             </label>
             <select
               value={periodFilter}
@@ -569,6 +591,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               <option value="Assembly Line">Assembly Line</option>
               <option value="Test Line">Test Line</option>
               <option value="Transmission Line">Transmission Line</option>
+              <option value="Hot Test">Hot Test</option>
+              <option value="Engine Assembly">Engine Assembly</option>
               <option value="IT">IT</option>
             </select>
           </div>
