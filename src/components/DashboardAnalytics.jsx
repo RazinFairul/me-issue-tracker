@@ -18,6 +18,13 @@ const MONTHS = [
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2, CURRENT_YEAR - 3];
 
+const CLASS_COLORS = {
+  'Class A': '#ef4444', // Merah (Kritikal)
+  'Class B': '#f59e0b', // Oren/Kuning (Sederhana)
+  'Class C': '#0284c7', // Biru (Minor)
+  'UNCLASSIFIED': '#94a3b8'
+};
+
 export default function DashboardAnalytics() {
   const [loading, setLoading] = useState(true);
   const [rawIssues, setRawIssues] = useState([]);
@@ -28,18 +35,18 @@ export default function DashboardAnalytics() {
   
   const currentMonth = new Date().getMonth() + 1;
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [selectedWeek, setSelectedWeek] = useState('all'); // 'all' | '1' | '2' | '3' | '4' | '5'
+  const [selectedWeek, setSelectedWeek] = useState('all');
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
 
-  // Penapis Kumpulan (Group Filter)
+  // Penapis Kumpulan
   const [selectedGroup, setSelectedGroup] = useState('all');
 
-  // Power BI Cross-Filter
+  // Cross-Filter Klasifikasi
   const [selectedClassification, setSelectedClassification] = useState(null);
 
-  // States Paparan Data (Tanpa Open)
+  // States Paparan Data
   const [stats, setStats] = useState({ total: 0, inProgress: 0, closed: 0 });
-  const [statusData, setStatusData] = useState([]);
+  const [statusChartData, setStatusChartData] = useState([]);
   const [locationData, setLocationData] = useState([]);
   const [classificationData, setClassificationData] = useState([]);
   const [trendData, setTrendData] = useState([]);
@@ -60,7 +67,6 @@ export default function DashboardAnalytics() {
     loadData();
   }, []);
 
-  // Helper untuk menentukan minggu ke berapa dalam bulan (1 - 5)
   const getWeekOfMonth = (dayNumber) => {
     return String(Math.min(5, Math.ceil(dayNumber / 7)));
   };
@@ -68,7 +74,7 @@ export default function DashboardAnalytics() {
   const processDashboard = useCallback(() => {
     if (!rawIssues.length) {
       setStats({ total: 0, inProgress: 0, closed: 0 });
-      setStatusData([]);
+      setStatusChartData([]);
       setLocationData([]);
       setClassificationData([]);
       setTrendData([]);
@@ -78,15 +84,13 @@ export default function DashboardAnalytics() {
 
     const now = new Date();
 
-    // 1. Penapis Tarikh & Penapis Group
+    // 1. Penapis Tarikh & Kumpulan
     const dateAndGroupFiltered = rawIssues.filter((item) => {
-      // Penapis Kumpulan
       if (selectedGroup !== 'all') {
         const itemGroup = (item.group_name || '').trim().toLowerCase();
         if (itemGroup !== selectedGroup.trim().toLowerCase()) return false;
       }
 
-      // Penapis Masa
       if (filterMode === 'all') return true;
 
       const rawDateStr = item.date_time || item.created_at || item.created_date;
@@ -125,7 +129,14 @@ export default function DashboardAnalytics() {
       return true;
     });
 
-    // 2. Cross-filtering Classification
+    // 2. Data Klasifikasi (Asas sebelum cross-filter)
+    const classMap = {};
+    dateAndGroupFiltered.forEach((item) => {
+      const classKey = item.classification ? `Class ${item.classification.toUpperCase()}` : 'UNCLASSIFIED';
+      classMap[classKey] = (classMap[classKey] || 0) + 1;
+    });
+
+    // 3. Cross-filtering data mengikut klik pie chart
     const fullyFiltered = selectedClassification
       ? dateAndGroupFiltered.filter((item) => {
           const c = item.classification ? `Class ${item.classification.toUpperCase()}` : 'UNCLASSIFIED';
@@ -136,26 +147,16 @@ export default function DashboardAnalytics() {
     let inProgressCount = 0;
     let closedCount = 0;
     const locationMap = {};
-    const classMap = {};
     let agingUnder3 = 0;
     let aging3to7 = 0;
     let agingOver7 = 0;
-
-    dateAndGroupFiltered.forEach((item) => {
-      const classKey = item.classification ? `Class ${item.classification.toUpperCase()}` : 'UNCLASSIFIED';
-      classMap[classKey] = (classMap[classKey] || 0) + 1;
-    });
 
     fullyFiltered.forEach((item) => {
       const status = (item.status || 'in progress').trim().toLowerCase();
       const isDone = status === 'closed' || status === 'close' || status === 'completed' || status === 'complete';
 
-      // Semua status bukan closed (termasuk In Progress 1/4, 2/4, 3/4 atau data legacy 'Open') dikira sebagai In Progress
-      if (isDone) {
-        closedCount++;
-      } else {
-        inProgressCount++;
-      }
+      if (isDone) closedCount++;
+      else inProgressCount++;
 
       const loc = item.location ? item.location.toUpperCase() : 'UNKNOWN';
       locationMap[loc] = (locationMap[loc] || 0) + 1;
@@ -195,26 +196,35 @@ export default function DashboardAnalytics() {
       }
     });
 
+    const totalCount = fullyFiltered.length;
+
     setStats({
-      total: fullyFiltered.length,
+      total: totalCount,
       inProgress: inProgressCount,
       closed: closedCount,
     });
 
-    setStatusData([
-      { name: 'In Progress', value: inProgressCount, color: '#f59e0b' },
-      { name: 'Closed', value: closedCount, color: '#16a34a' },
+    // Bar Chart Status (Gaya Gambar 1: Total, Closed, In Progress)
+    setStatusChartData([
+      { status: 'Total', count: totalCount, fill: '#0d3b66' },
+      { status: 'Closed', count: closedCount, fill: '#16a34a' },
+      { status: 'In Progress', count: inProgressCount, fill: '#0284c7' }
     ]);
+
+    // Pie Chart Classification
+    setClassificationData(
+      Object.keys(classMap)
+        .map((cls) => ({
+          name: cls,
+          value: classMap[cls],
+          color: CLASS_COLORS[cls] || '#64748b'
+        }))
+        .sort((a, b) => b.value - a.value)
+    );
 
     setLocationData(
       Object.keys(locationMap)
         .map((loc) => ({ location: loc, count: locationMap[loc] }))
-        .sort((a, b) => b.count - a.count)
-    );
-
-    setClassificationData(
-      Object.keys(classMap)
-        .map((cls) => ({ classification: cls, count: classMap[cls] }))
         .sort((a, b) => b.count - a.count)
     );
 
@@ -253,7 +263,7 @@ export default function DashboardAnalytics() {
         fill="#333"
         textAnchor={x > cx ? 'start' : 'end'}
         dominantBaseline="central"
-        style={{ fontSize: '12px', fontWeight: 'bold' }}
+        style={{ fontSize: '11px', fontWeight: 'bold' }}
       >
         {`${(percent * 100).toFixed(1)}% (${value})`}
       </text>
@@ -273,8 +283,6 @@ export default function DashboardAnalytics() {
         
         {/* Dropdown Filters */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          
-          {/* Group Filter */}
           <select
             value={selectedGroup}
             onChange={(e) => setSelectedGroup(e.target.value)}
@@ -289,14 +297,11 @@ export default function DashboardAnalytics() {
             <option value="IT">IT</option>
           </select>
 
-          {/* Date Filter Modes */}
           <select
             value={filterMode}
             onChange={(e) => {
               setFilterMode(e.target.value);
-              if (e.target.value !== 'custom') {
-                setSelectedWeek('all');
-              }
+              if (e.target.value !== 'custom') setSelectedWeek('all');
             }}
             style={{ padding: '7px 10px', borderRadius: '5px', border: 'none', fontWeight: 'bold', cursor: 'pointer', color: '#0d3b66', backgroundColor: '#fff' }}
           >
@@ -320,7 +325,6 @@ export default function DashboardAnalytics() {
 
           {filterMode === 'custom' && (
             <>
-              {/* Month Dropdown */}
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
@@ -332,7 +336,6 @@ export default function DashboardAnalytics() {
                 ))}
               </select>
 
-              {/* Week Dropdown */}
               <select
                 value={selectedWeek}
                 onChange={(e) => setSelectedWeek(e.target.value)}
@@ -346,7 +349,6 @@ export default function DashboardAnalytics() {
                 <option value="5">Week 5 (29+)</option>
               </select>
 
-              {/* Year Dropdown */}
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -378,7 +380,7 @@ export default function DashboardAnalytics() {
         <p style={{ textAlign: 'center', padding: '40px' }}>Loading analytics data...</p>
       ) : (
         <>
-          {/* KPI Summary Cards (Kini 3 Kad Utama Tanpa Open) */}
+          {/* KPI Summary Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', marginBottom: '25px' }}>
             <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #0d3b66', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
               <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>
@@ -387,9 +389,9 @@ export default function DashboardAnalytics() {
               <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#0d3b66' }}>{stats.total}</h2>
             </div>
             
-            <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #f59e0b', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+            <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #0284c7', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
               <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>IN PROGRESS</span>
-              <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#d97706' }}>{stats.inProgress}</h2>
+              <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#0284c7' }}>{stats.inProgress}</h2>
             </div>
             
             <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #16a34a', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
@@ -405,73 +407,75 @@ export default function DashboardAnalytics() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             
-            {/* Row 1: Pie Chart (Status Distribution) + Classification Slicer Bar Chart */}
+            {/* Row 1: Issue Status Overview (BAR CHART) + Classification (PIE CHART) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
               
+              {/* KAD KIRI: Issue Status Bar Chart (Gaya Gambar 1) */}
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ marginTop: 0, color: '#0d3b66', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-                  📊 Issue Status Distribution (%) {selectedGroup !== 'all' && `(${selectedGroup})`}
+                  📊 Issue Status Overview {selectedGroup !== 'all' && `(${selectedGroup})`}
                 </h3>
                 <div style={{ width: '100%', height: '280px' }}>
-                  {stats.total === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '100px 0', color: '#888' }}>No data available</div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie 
-                          data={statusData.filter((d) => d.value > 0)} 
-                          cx="50%" 
-                          cy="50%" 
-                          innerRadius={0} 
-                          outerRadius={85} 
-                          paddingAngle={2} 
-                          dataKey="value" 
-                          labelLine={true}
-                          label={renderCustomPercentageLabel}
-                        >
-                          {statusData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          formatter={(val, name) => [
-                            `${val} (${stats.total > 0 ? ((val / stats.total) * 100).toFixed(1) : 0}%)`,
-                            name
-                          ]} 
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-                  <h3 style={{ margin: 0, color: '#0d3b66', fontSize: '16px' }}>🏷️ Classification (Click bar to cross-filter)</h3>
-                </div>
-                <div style={{ width: '100%', height: '280px' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={classificationData} margin={{ top: 20, right: 30, left: 0, bottom: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="classification" />
+                    <BarChart data={statusChartData} margin={{ top: 25, right: 30, left: 0, bottom: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="status" />
                       <YAxis allowDecimals={false} />
-                      <Tooltip />
+                      <Tooltip formatter={(val) => [`${val} issues`, 'Count']} />
                       <Bar 
                         dataKey="count" 
-                        cursor="pointer"
-                        onClick={(entry) => setSelectedClassification((prev) => prev === entry.classification ? null : entry.classification)}
-                        radius={[4, 4, 0, 0]}
+                        radius={[6, 6, 0, 0]}
+                        label={{ position: 'top', fill: '#333', fontSize: 13, fontWeight: 'bold' }}
                       >
-                        {classificationData.map((entry, idx) => (
-                          <Cell 
-                            key={`cls-${idx}`} 
-                            fill={selectedClassification === entry.classification ? '#0d3b66' : '#64748b'} 
-                          />
+                        {statusChartData.map((entry, idx) => (
+                          <Cell key={`status-cell-${idx}`} fill={entry.fill} />
                         ))}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* KAD KANAN: Classification Distribution (PIE CHART dengan Cross-Filter) */}
+              <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                  <h3 style={{ margin: 0, color: '#0d3b66', fontSize: '16px' }}>
+                    🏷️ Classification (Click slice to cross-filter)
+                  </h3>
+                </div>
+                <div style={{ width: '100%', height: '280px' }}>
+                  {classificationData.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '100px 0', color: '#888' }}>No data available</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={classificationData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={0}
+                          outerRadius={80}
+                          paddingAngle={2}
+                          dataKey="value"
+                          labelLine={true}
+                          label={renderCustomPercentageLabel}
+                          cursor="pointer"
+                          onClick={(entry) => setSelectedClassification((prev) => prev === entry.name ? null : entry.name)}
+                        >
+                          {classificationData.map((entry, index) => (
+                            <Cell 
+                              key={`pie-cell-${index}`} 
+                              fill={entry.color} 
+                              stroke={selectedClassification === entry.name ? '#0d3b66' : '#fff'}
+                              strokeWidth={selectedClassification === entry.name ? 3 : 1}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(val, name) => [`${val} issues`, name]} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
 
