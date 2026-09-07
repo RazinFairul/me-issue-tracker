@@ -374,7 +374,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       'Status',
       'Progress Notes',
       'File Attachment URL',
-      'External Cloud Link'
+      'External Attachment Link'
     ];
 
     const escapeCsv = (str) => {
@@ -812,13 +812,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </a>
                     )}
 
-                    {/* Universal External / Cloud Storage Link Button */}
+                    {/* External Cloud Storage Link Button */}
                     {issue.onedrive_link && (
                       <a
                         href={issue.onedrive_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Open external cloud link (OneDrive, Google Drive, SharePoint, etc.)"
+                        title="Open external attachment link"
                         style={{ 
                           fontSize: '11px', 
                           color: '#fff', 
@@ -832,7 +832,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                           gap: '3px'
                         }}
                       >
-                        🔗 Cloud Link ↗
+                        📁 Open Attachment ↗
                       </a>
                     )}
 
