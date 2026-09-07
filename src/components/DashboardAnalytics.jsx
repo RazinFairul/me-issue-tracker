@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  LineChart, Line
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend,
+  LineChart,
+  BarChart
 } from 'recharts';
 
 const MONTHS = [
@@ -19,9 +20,9 @@ const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2, CURRENT_YEAR - 3];
 
 const CLASS_COLORS = {
-  'Class A': '#ef4444', // Merah (Kritikal)
-  'Class B': '#f59e0b', // Oren/Kuning (Sederhana)
-  'Class C': '#0284c7', // Biru (Minor)
+  'Class A': '#ef4444',
+  'Class B': '#f59e0b',
+  'Class C': '#0284c7',
   'UNCLASSIFIED': '#94a3b8'
 };
 
@@ -46,7 +47,7 @@ export default function DashboardAnalytics() {
 
   // States Paparan Data
   const [stats, setStats] = useState({ total: 0, inProgress: 0, closed: 0 });
-  const [statusChartData, setStatusChartData] = useState([]);
+  const [statusComboData, setStatusComboData] = useState([]);
   const [locationData, setLocationData] = useState([]);
   const [classificationData, setClassificationData] = useState([]);
   const [trendData, setTrendData] = useState([]);
@@ -74,7 +75,7 @@ export default function DashboardAnalytics() {
   const processDashboard = useCallback(() => {
     if (!rawIssues.length) {
       setStats({ total: 0, inProgress: 0, closed: 0 });
-      setStatusChartData([]);
+      setStatusComboData([]);
       setLocationData([]);
       setClassificationData([]);
       setTrendData([]);
@@ -129,14 +130,14 @@ export default function DashboardAnalytics() {
       return true;
     });
 
-    // 2. Data Klasifikasi (Asas sebelum cross-filter)
+    // 2. Data Klasifikasi
     const classMap = {};
     dateAndGroupFiltered.forEach((item) => {
       const classKey = item.classification ? `Class ${item.classification.toUpperCase()}` : 'UNCLASSIFIED';
       classMap[classKey] = (classMap[classKey] || 0) + 1;
     });
 
-    // 3. Cross-filtering data mengikut klik pie chart
+    // 3. Cross-filtering
     const fullyFiltered = selectedClassification
       ? dateAndGroupFiltered.filter((item) => {
           const c = item.classification ? `Class ${item.classification.toUpperCase()}` : 'UNCLASSIFIED';
@@ -204,14 +205,32 @@ export default function DashboardAnalytics() {
       closed: closedCount,
     });
 
-    // Bar Chart Status (Gaya Gambar 1: Total, Closed, In Progress)
-    setStatusChartData([
-      { status: 'Total', count: totalCount, fill: '#0d3b66' },
-      { status: 'Closed', count: closedCount, fill: '#16a34a' },
-      { status: 'In Progress', count: inProgressCount, fill: '#0284c7' }
+    // Kira peratusan untuk Garisan Merah (Line)
+    const closedPercent = totalCount > 0 ? Math.round((closedCount / totalCount) * 100) : 0;
+    const inProgressPercent = totalCount > 0 ? Math.round((inProgressCount / totalCount) * 100) : 0;
+
+    // Data Bar + Garisan Merah (ComposedChart mengikut gambar rujukan)
+    setStatusComboData([
+      {
+        status: 'Total',
+        count: totalCount,
+        percentage: 100,
+        fill: '#0d3b66'
+      },
+      {
+        status: 'Closed',
+        count: closedCount,
+        percentage: closedPercent,
+        fill: '#16a34a'
+      },
+      {
+        status: 'Ongoing',
+        count: inProgressCount,
+        percentage: inProgressPercent,
+        fill: '#0284c7'
+      }
     ]);
 
-    // Pie Chart Classification
     setClassificationData(
       Object.keys(classMap)
         .map((cls) => ({
@@ -248,7 +267,7 @@ export default function DashboardAnalytics() {
     processDashboard();
   }, [processDashboard]);
 
-  // Label peratusan (%) untuk Pie Chart
+  // Label peratusan untuk Pie Chart
   const renderCustomPercentageLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, value }) => {
     if (!value || percent === 0) return null;
     const RADIAN = Math.PI / 180;
@@ -270,9 +289,45 @@ export default function DashboardAnalytics() {
     );
   };
 
+  // Custom label nombor di bahagian tengah bar
+  const renderInsideBarLabel = (props) => {
+    const { x, y, width, height, value } = props;
+    if (!value || height < 14) return null;
+    return (
+      <text
+        x={x + width / 2}
+        y={y + height / 2}
+        fill="#ffffff"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        style={{ fontSize: '13px', fontWeight: 'bold' }}
+      >
+        {value}
+      </text>
+    );
+  };
+
+  // Custom label peratusan di atas titik garisan merah
+  const renderLinePercentageLabel = (props) => {
+    const { x, y, value } = props;
+    if (value === undefined || value === null) return null;
+    return (
+      <text
+        x={x}
+        y={y - 12}
+        fill="#b91c1c"
+        textAnchor="middle"
+        style={{ fontSize: '12px', fontWeight: 'bold' }}
+      >
+        {`${value}%`}
+      </text>
+    );
+  };
+
   const displayedLocationData = showAllLocations ? locationData : locationData.slice(0, 20);
   const chartWidth = showAllLocations ? Math.max(1000, locationData.length * 45) : '100%';
   const closeRate = stats.total > 0 ? ((stats.closed / stats.total) * 100).toFixed(1) : 0;
+  const maxCount = Math.max(stats.total, 5);
 
   return (
     <div style={{ padding: '20px', maxWidth: '1300px', margin: '0 auto', fontFamily: 'Arial, sans-serif', backgroundColor: '#f4f6f9', minHeight: '100vh' }}>
@@ -390,7 +445,7 @@ export default function DashboardAnalytics() {
             </div>
             
             <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #0284c7', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
-              <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>IN PROGRESS</span>
+              <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>ONGOING (IN PROGRESS)</span>
               <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#0284c7' }}>{stats.inProgress}</h2>
             </div>
             
@@ -407,31 +462,59 @@ export default function DashboardAnalytics() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             
-            {/* Row 1: Issue Status Overview (BAR CHART) + Classification (PIE CHART) */}
+            {/* Row 1: Issue Status ComposedChart (Bar + Line Merah) & Classification (Pie Chart) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
               
-              {/* KAD KIRI: Issue Status Bar Chart (Gaya Gambar 1) */}
+              {/* KAD KIRI: ComposedChart (Bar & Garisan Merah) */}
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ marginTop: 0, color: '#0d3b66', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-                  📊 Issue Status Overview {selectedGroup !== 'all' && `(${selectedGroup})`}
+                  📊 Issue Status & Progress Rate {selectedGroup !== 'all' && `(${selectedGroup})`}
                 </h3>
                 <div style={{ width: '100%', height: '280px' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={statusChartData} margin={{ top: 25, right: 30, left: 0, bottom: 10 }}>
+                    <ComposedChart data={statusComboData} margin={{ top: 30, right: 20, left: -10, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="status" />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip formatter={(val) => [`${val} issues`, 'Count']} />
+                      <XAxis dataKey="status" tick={{ fontWeight: 'bold', fontSize: 12 }} />
+                      
+                      {/* Paksi Kiri: Kiraan Isu */}
+                      <YAxis yAxisId="left" allowDecimals={false} domain={[0, maxCount + 2]} />
+                      
+                      {/* Paksi Kanan: Peratusan (%) */}
+                      <YAxis yAxisId="right" orientation="right" domain={[0, 100]} unit="%" />
+                      
+                      <Tooltip 
+                        formatter={(val, name) => [
+                          name === 'Count' ? `${val} issues` : `${val}%`, 
+                          name
+                        ]} 
+                      />
+
+                      {/* Bar Bertingkat / Lajur dengan Label Nombor di dalam */}
                       <Bar 
+                        yAxisId="left" 
                         dataKey="count" 
-                        radius={[6, 6, 0, 0]}
-                        label={{ position: 'top', fill: '#333', fontSize: 13, fontWeight: 'bold' }}
+                        name="Count"
+                        barSize={46}
+                        radius={[4, 4, 0, 0]}
+                        label={renderInsideBarLabel}
                       >
-                        {statusChartData.map((entry, idx) => (
-                          <Cell key={`status-cell-${idx}`} fill={entry.fill} />
+                        {statusComboData.map((entry, idx) => (
+                          <Cell key={`bar-cell-${idx}`} fill={entry.fill} />
                         ))}
                       </Bar>
-                    </BarChart>
+
+                      {/* Garisan Merah dengan Titik & Label Peratusan (%) */}
+                      <Line 
+                        yAxisId="right" 
+                        type="linear" 
+                        dataKey="percentage" 
+                        name="Rate (%)"
+                        stroke="#b91c1c" 
+                        strokeWidth={3} 
+                        dot={{ r: 4, fill: '#b91c1c' }}
+                        label={renderLinePercentageLabel}
+                      />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               </div>
