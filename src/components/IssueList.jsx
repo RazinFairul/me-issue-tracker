@@ -21,7 +21,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [newEstClosingDate, setNewEstClosingDate] = useState('');
   const [savingEstDate, setSavingEstDate] = useState(false);
 
-  // Update Progress & Status Modal (Default terus kepada In Progress 1/4)
+  // Update Progress & Status Modal
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [newStatus, setNewStatus] = useState('In Progress (1/4)');
   const [progressNote, setProgressNote] = useState('');
@@ -113,13 +113,28 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return Array.from(new Set(issues.map((i) => i.pic_name || i.pic).filter(Boolean))).sort();
   }, [issues]);
 
-  const handleDeleteIssue = async (issueId, issueTitle) => {
-    const confirmDelete = window.confirm(`Are you sure you want to delete "${issueTitle || 'this issue'}"?`);
+  // Padam isu dan bersihkan lampiran gambar dalam Storage bucket secara serentak
+  const handleDeleteIssue = async (issue) => {
+    const confirmDelete = window.confirm(`Are you sure you want to delete "${issue.what_issue || 'this issue'}"?`);
     if (!confirmDelete) return;
 
-    setIssues((prevIssues) => prevIssues.filter((item) => item.id !== issueId));
+    setIssues((prevIssues) => prevIssues.filter((item) => item.id !== issue.id));
 
-    const { error } = await supabase.from('issues').delete().eq('id', issueId);
+    // 1. Bersihkan fail imej dari bucket issue-attachments jika wujud
+    if (issue.file_url) {
+      try {
+        const urlParts = issue.file_url.split('/issue-attachments/');
+        if (urlParts.length > 1) {
+          const storagePath = decodeURIComponent(urlParts[1]);
+          await supabase.storage.from('issue-attachments').remove([storagePath]);
+        }
+      } catch (err) {
+        console.warn('Gagal memadam fail dari storage:', err);
+      }
+    }
+
+    // 2. Padam rekod dari pangkalan data
+    const { error } = await supabase.from('issues').delete().eq('id', issue.id);
 
     if (error) {
       alert('Failed to delete issue: ' + error.message);
@@ -211,7 +226,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       case 'Complete':
         return { icon: '⚫', text: 'Closed (4/4)', bg: '#16a34a', color: '#fff' };
       default:
-        // Rekod yang tiada status atau masih 'Open' automatik dipaparkan sebagai 1/4
         return { icon: '◔', text: 'In Progress (1/4)', bg: '#fd7e14', color: '#fff' };
     }
   };
@@ -273,7 +287,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       }
     }
 
-    // Logik Status (Open diserap ke dalam In Progress)
+    // Logik Status
     let matchesStatus = true;
     if (statusFilter !== 'All') {
       if (statusFilter === 'Closed') {
@@ -358,7 +372,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       'PIC',
       'Est. Closing Date',
       'Status',
-      'Progress Notes'
+      'Progress Notes',
+      'File Attachment URL',
+      'OneDrive Link'
     ];
 
     const escapeCsv = (str) => {
@@ -381,7 +397,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         escapeCsv(i.pic_name || i.pic || ''),
         escapeCsv(i.estimated_closing ? i.estimated_closing.split('T')[0] : ''),
         escapeCsv(exportStatus),
-        escapeCsv(i.progress_note || '')
+        escapeCsv(i.progress_note || ''),
+        escapeCsv(i.file_url || ''),
+        escapeCsv(i.onedrive_link || '')
       ];
     });
 
@@ -527,7 +545,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 2. Status (Tiada Pilihan Open) */}
+          {/* 2. Status */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📌 Status:
@@ -781,7 +799,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                     <span>{statusInfo.text}</span>
                   </span>
 
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* Butang Lihat Imej / Lampiran Terus */}
                     {issue.file_url && (
                       <a
                         href={issue.file_url}
@@ -790,6 +809,30 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                         style={{ fontSize: '11px', color: '#0d3b66', fontWeight: 'bold', textDecoration: 'none', padding: '4px 8px', border: '1px solid #0d3b66', borderRadius: '4px', backgroundColor: '#fff' }}
                       >
                         👁️ View
+                      </a>
+                    )}
+
+                    {/* Butang Capaian Pantas Microsoft OneDrive */}
+                    {issue.onedrive_link && (
+                      <a
+                        href={issue.onedrive_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Buka lampiran video/fail besar di Microsoft OneDrive"
+                        style={{ 
+                          fontSize: '11px', 
+                          color: '#fff', 
+                          fontWeight: 'bold', 
+                          textDecoration: 'none', 
+                          padding: '4px 8px', 
+                          borderRadius: '4px', 
+                          backgroundColor: '#0078d4',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}
+                      >
+                        📁 OneDrive ↗
                       </a>
                     )}
 
@@ -810,7 +853,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                         </button>
 
                         <button
-                          onClick={() => handleDeleteIssue(issue.id, issue.what_issue)}
+                          onClick={() => handleDeleteIssue(issue)}
                           style={{ border: 'none', backgroundColor: '#dc3545', color: '#fff', cursor: 'pointer', padding: '5px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}
                         >
                           🗑️ Delete
@@ -829,7 +872,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         </div>
       )}
 
-      {/* Update Progress & Milestone Modal (Pilihan Open Dibuang) */}
+      {/* Update Progress & Milestone Modal */}
       {selectedIssue && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '90%', maxWidth: '440px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>

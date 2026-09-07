@@ -12,6 +12,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [classification, setClassification] = useState('');
   const [estimatedClosing, setEstimatedClosing] = useState('');
   const [file, setFile] = useState(null);
+  const [onedriveLink, setOnedriveLink] = useState('');
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
 
@@ -100,7 +101,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         fileUrl = urlData.publicUrl;
       }
 
-      // 3. Simpan isu ke Supabase bersama maklumat pemilik
+      // 3. Simpan isu ke Supabase bersama maklumat pemilik & pautan OneDrive
       const { error: insertError } = await supabase.from('issues').insert([
         {
           what_issue: whatIssue,
@@ -116,6 +117,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           staff_name: autoStaffName,
           staff_id: user?.user_metadata?.staff_id || null,
           file_url: fileUrl,
+          onedrive_link: onedriveLink.trim() || null,
           user_id: user.id,
           user_email: user.email,
           status: 'Open',
@@ -286,12 +288,29 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '12px' }}>
-            <small style={{ color: '#666' }}>Max: 50 MB (Gambar akan dimampatkan secara automatik)</small>
+            <small style={{ color: '#666' }}>Max: 50 MB (Gambar dimampatkan automatik)</small>
             {compressing && <span style={{ color: '#0284c7', fontWeight: 'bold' }}>⏳ Memampatkan imej...</span>}
             {!compressing && file && file.type.startsWith('image/') && (
               <span style={{ color: '#16a34a', fontWeight: 'bold' }}>✓ {(file.size / 1024).toFixed(0)} KB siap</span>
             )}
           </div>
+        </div>
+
+        {/* OneDrive / SharePoint Attachment Link */}
+        <div>
+          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
+            OneDrive / SharePoint Link (Optional):
+          </label>
+          <input 
+            type="url" 
+            value={onedriveLink} 
+            onChange={(e) => setOnedriveLink(e.target.value)} 
+            placeholder="https://company-my.sharepoint.com/:v:/g/..." 
+            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+          />
+          <small style={{ color: '#666', display: 'block', marginTop: '4px' }}>
+            *Gunakan ruangan ini untuk menampal pautan perkongsian video mesin atau dokumen manual PDF yang tebal.
+          </small>
         </div>
 
         <button 
