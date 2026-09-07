@@ -30,7 +30,7 @@ export default function DashboardAnalytics() {
   const [loading, setLoading] = useState(true);
   const [rawIssues, setRawIssues] = useState([]);
   
-  // Penapis Tarikh
+  // Date Filters
   const [filterMode, setFilterMode] = useState('all'); 
   const [timeRange, setTimeRange] = useState('all'); 
   
@@ -39,13 +39,13 @@ export default function DashboardAnalytics() {
   const [selectedWeek, setSelectedWeek] = useState('all');
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
 
-  // Penapis Kumpulan
+  // Group Filter
   const [selectedGroup, setSelectedGroup] = useState('all');
 
-  // Cross-Filter Klasifikasi
+  // Classification Cross-Filter
   const [selectedClassification, setSelectedClassification] = useState(null);
 
-  // States Paparan Data
+  // Display States
   const [stats, setStats] = useState({ total: 0, inProgress: 0, closed: 0 });
   const [statusComboData, setStatusComboData] = useState([]);
   const [locationData, setLocationData] = useState([]);
@@ -85,7 +85,7 @@ export default function DashboardAnalytics() {
 
     const now = new Date();
 
-    // 1. Penapis Tarikh & Kumpulan
+    // 1. Filter Date & Group (Hot Test & Engine Assembly omitted)
     const dateAndGroupFiltered = rawIssues.filter((item) => {
       if (selectedGroup !== 'all') {
         const itemGroup = (item.group_name || '').trim().toLowerCase();
@@ -130,7 +130,7 @@ export default function DashboardAnalytics() {
       return true;
     });
 
-    // 2. Data Klasifikasi
+    // 2. Classification Distribution
     const classMap = {};
     dateAndGroupFiltered.forEach((item) => {
       const classKey = item.classification ? `Class ${item.classification.toUpperCase()}` : 'UNCLASSIFIED';
@@ -205,11 +205,9 @@ export default function DashboardAnalytics() {
       closed: closedCount,
     });
 
-    // Kira peratusan untuk label garisan
     const closedPercent = totalCount > 0 ? Math.round((closedCount / totalCount) * 100) : 0;
     const inProgressPercent = totalCount > 0 ? Math.round((inProgressCount / totalCount) * 100) : 0;
 
-    // Data Bar + Titik tepat atas bar
     setStatusComboData([
       {
         status: 'Total',
@@ -227,7 +225,7 @@ export default function DashboardAnalytics() {
         status: 'Ongoing',
         count: inProgressCount,
         percentage: inProgressPercent,
-        fill: '#0284c7'
+        fill: '#ea580c'
       }
     ]);
 
@@ -247,10 +245,11 @@ export default function DashboardAnalytics() {
         .sort((a, b) => b.count - a.count)
     );
 
+    // Aging Donut Dataset
     setAgingData([
-      { range: '< 3 Days', count: agingUnder3, fill: '#16a34a' },
-      { range: '3 - 7 Days', count: aging3to7, fill: '#f59e0b' },
-      { range: '> 7 Days (Critical)', count: agingOver7, fill: '#dc3545' },
+      { name: '< 3 Days (Healthy)', count: agingUnder3, fill: '#16a34a' },
+      { name: '3 - 7 Days (Moderate)', count: aging3to7, fill: '#eab308' },
+      { name: '> 7 Days (Critical Overdue)', count: agingOver7, fill: '#dc3545' },
     ]);
 
     setTrendData(
@@ -267,7 +266,7 @@ export default function DashboardAnalytics() {
     processDashboard();
   }, [processDashboard]);
 
-  // Label peratusan untuk Pie Chart
+  // Percentage Labels for Pie Charts
   const renderCustomPercentageLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, value }) => {
     if (!value || percent === 0) return null;
     const RADIAN = Math.PI / 180;
@@ -284,12 +283,11 @@ export default function DashboardAnalytics() {
         dominantBaseline="central"
         style={{ fontSize: '11px', fontWeight: 'bold' }}
       >
-        {`${(percent * 100).toFixed(1)}% (${value})`}
+        {`${(percent * 100).toFixed(0)}% (${value})`}
       </text>
     );
   };
 
-  // Label nombor di bahagian tengah bar
   const renderInsideBarLabel = (props) => {
     const { x, y, width, height, value } = props;
     if (!value || height < 14) return null;
@@ -311,6 +309,7 @@ export default function DashboardAnalytics() {
   const chartWidth = showAllLocations ? Math.max(1000, locationData.length * 45) : '100%';
   const closeRate = stats.total > 0 ? ((stats.closed / stats.total) * 100).toFixed(1) : 0;
   const maxAxisValue = Math.max(stats.total, 1);
+  const totalActiveBacklog = stats.inProgress;
 
   return (
     <div style={{ padding: '20px', maxWidth: '1300px', margin: '0 auto', fontFamily: 'Arial, sans-serif', backgroundColor: '#f4f6f9', minHeight: '100vh' }}>
@@ -330,8 +329,6 @@ export default function DashboardAnalytics() {
             <option value="Assembly Line">Assembly Line</option>
             <option value="Test Line">Test Line</option>
             <option value="Transmission Line">Transmission Line</option>
-            <option value="Hot Test">Hot Test</option>
-            <option value="Engine Assembly">Engine Assembly</option>
             <option value="IT">IT</option>
           </select>
 
@@ -427,9 +424,9 @@ export default function DashboardAnalytics() {
               <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#0d3b66' }}>{stats.total}</h2>
             </div>
             
-            <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #0284c7', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+            <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #ea580c', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
               <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>ONGOING (IN PROGRESS)</span>
-              <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#0284c7' }}>{stats.inProgress}</h2>
+              <h2 style={{ margin: '8px 0 0 0', fontSize: '28px', color: '#ea580c' }}>{stats.inProgress}</h2>
             </div>
             
             <div style={{ backgroundColor: '#fff', borderLeft: '6px solid #16a34a', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
@@ -445,10 +442,9 @@ export default function DashboardAnalytics() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             
-            {/* Row 1: Issue Status ComposedChart (Bar + Line Merah Tepat Atas Bar) & Classification */}
+            {/* Row 1: Status ComposedChart & Classification PieChart */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
               
-              {/* KAD KIRI: ComposedChart (Bar & Garisan Merah Tepat Atas Bar) */}
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ marginTop: 0, color: '#0d3b66', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
                   📊 Issue Status & Progress Rate {selectedGroup !== 'all' && `(${selectedGroup})`}
@@ -458,11 +454,7 @@ export default function DashboardAnalytics() {
                     <ComposedChart data={statusComboData} margin={{ top: 35, right: 20, left: -10, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="status" tick={{ fontWeight: 'bold', fontSize: 12 }} />
-                      
-                      {/* Paksi Kiri: Tetapkan max tepat kepada maxAxisValue supaya bar 100% dan titik 100% berada pada skala yang sama */}
                       <YAxis yAxisId="left" allowDecimals={false} domain={[0, maxAxisValue]} />
-                      
-                      {/* Paksi Kanan: Peratusan 0% - 100% */}
                       <YAxis yAxisId="right" orientation="right" domain={[0, 100]} unit="%" />
                       
                       <Tooltip 
@@ -472,7 +464,6 @@ export default function DashboardAnalytics() {
                         ]} 
                       />
 
-                      {/* Bar Chart dengan nombor di dalam bar */}
                       <Bar 
                         yAxisId="left" 
                         dataKey="count" 
@@ -486,7 +477,6 @@ export default function DashboardAnalytics() {
                         ))}
                       </Bar>
 
-                      {/* Garisan Merah dikaitkan ke yAxisId="left" dan dataKey="count" supaya titik merah jatuh tepat di atas bar */}
                       <Line 
                         yAxisId="left" 
                         type="linear" 
@@ -517,7 +507,7 @@ export default function DashboardAnalytics() {
                 </div>
               </div>
 
-              {/* KAD KANAN: Classification Distribution (PIE CHART) */}
+              {/* Classification Distribution */}
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
                   <h3 style={{ margin: 0, color: '#0d3b66', fontSize: '16px' }}>
@@ -562,9 +552,10 @@ export default function DashboardAnalytics() {
 
             </div>
 
-            {/* Row 2: Monthly Trend & Aging Analysis */}
+            {/* Row 2: Monthly Trend & Unresolved Aging Donut Chart */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
               
+              {/* Trend Chart */}
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ marginTop: 0, color: '#0d3b66', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
                   📈 Issues Created vs Closed Trend
@@ -584,24 +575,61 @@ export default function DashboardAnalytics() {
                 </div>
               </div>
 
-              <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+              {/* Donut Chart for Unresolved Issues Aging */}
+              <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', position: 'relative' }}>
                 <h3 style={{ marginTop: 0, color: '#0d3b66', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-                  ⏱️ Pending Issues Aging (Unresolved Backlog)
+                  ⏱️ Pending Issues Aging Breakdown
                 </h3>
-                <div style={{ width: '100%', height: '260px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={agingData} layout="vertical" margin={{ top: 10, right: 30, left: 30, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" allowDecimals={false} />
-                      <YAxis type="category" dataKey="range" width={110} />
-                      <Tooltip />
-                      <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                        {agingData.map((entry, idx) => (
-                          <Cell key={`aging-${idx}`} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+
+                <div style={{ width: '100%', height: '260px', position: 'relative' }}>
+                  {totalActiveBacklog === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '90px 0', color: '#16a34a', fontWeight: 'bold' }}>
+                      🎉 Zero Unresolved Backlog (All Closed)
+                    </div>
+                  ) : (
+                    <>
+                      {/* Central Metric Indicator */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '44%',
+                          left: '50%',
+                          transform: 'translate(-50%, -50%)',
+                          textAlign: 'center',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        <span style={{ fontSize: '26px', fontWeight: 'bold', color: '#0d3b66', display: 'block', lineHeight: 1 }}>
+                          {totalActiveBacklog}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>
+                          Pending
+                        </span>
+                      </div>
+
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={agingData}
+                            cx="50%"
+                            cy="46%"
+                            innerRadius={55}
+                            outerRadius={80}
+                            paddingAngle={4}
+                            dataKey="count"
+                            labelLine={true}
+                            label={renderCustomPercentageLabel}
+                          >
+                            {agingData.map((entry, idx) => (
+                              <Cell key={`aging-donut-${idx}`} fill={entry.fill} stroke="#fff" strokeWidth={2} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(val, name) => [`${val} issues`, name]} />
+                          <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: '10px' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </>
+                  )}
                 </div>
               </div>
 
