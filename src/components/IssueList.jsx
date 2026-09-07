@@ -37,10 +37,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   const fetchIssues = async () => {
     setLoading(true);
+    // Sort directly by issue occurrence date descending (latest date first)
     const { data, error } = await supabase
       .from('issues')
       .select('*')
-      .order('updated_at', { ascending: false });
+      .order('date_time', { ascending: false });
 
     if (error) {
       alert('Error fetching issues: ' + error.message);
@@ -255,88 +256,94 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setUpdating(false);
   };
 
-  // Filter Logic
-  const filteredIssues = issues.filter((issue) => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch =
-      (issue.what_issue && issue.what_issue.toLowerCase().includes(searchLower)) ||
-      (issue.description && issue.description.toLowerCase().includes(searchLower)) ||
-      (issue.group_name && issue.group_name.toLowerCase().includes(searchLower)) ||
-      (issue.classification && issue.classification.toLowerCase().includes(searchLower)) ||
-      (issue.staff_name && issue.staff_name.toLowerCase().includes(searchLower)) ||
-      (issue.staff_id && issue.staff_id.toLowerCase().includes(searchLower)) ||
-      (issue.location && issue.location.toLowerCase().includes(searchLower)) ||
-      (issue.pic_name && issue.pic_name.toLowerCase().includes(searchLower)) ||
-      (issue.pic && issue.pic.toLowerCase().includes(searchLower));
+  // Filter & Sorting Logic (Chronological: latest issue dates first)
+  const filteredIssues = issues
+    .filter((issue) => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch =
+        (issue.what_issue && issue.what_issue.toLowerCase().includes(searchLower)) ||
+        (issue.description && issue.description.toLowerCase().includes(searchLower)) ||
+        (issue.group_name && issue.group_name.toLowerCase().includes(searchLower)) ||
+        (issue.classification && issue.classification.toLowerCase().includes(searchLower)) ||
+        (issue.staff_name && issue.staff_name.toLowerCase().includes(searchLower)) ||
+        (issue.staff_id && issue.staff_id.toLowerCase().includes(searchLower)) ||
+        (issue.location && issue.location.toLowerCase().includes(searchLower)) ||
+        (issue.pic_name && issue.pic_name.toLowerCase().includes(searchLower)) ||
+        (issue.pic && issue.pic.toLowerCase().includes(searchLower));
 
-    const issueDateRaw = issue.date_time || issue.created_at;
-    const estClosingRaw = issue.estimated_closing;
-    const issueDateOnly = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
-    const estDateOnly = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
+      const issueDateRaw = issue.date_time || issue.created_at;
+      const estClosingRaw = issue.estimated_closing;
+      const issueDateOnly = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
+      const estDateOnly = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
 
-    // Period Logic
-    let matchesPeriod = true;
-    if (periodFilter !== 'All') {
-      if (periodFilter.includes('-W')) {
-        const [targetMonth, targetWeek] = periodFilter.split('-W');
-        const issueWeekNum = issueDateOnly.slice(0, 7) === targetMonth ? getWeekOfMonth(issueDateOnly) : null;
-        const estWeekNum = estDateOnly.slice(0, 7) === targetMonth ? getWeekOfMonth(estDateOnly) : null;
-        matchesPeriod = (issueWeekNum === targetWeek) || (estWeekNum === targetWeek);
-      } else {
-        matchesPeriod = issueDateOnly.slice(0, 7) === periodFilter || estDateOnly.slice(0, 7) === periodFilter;
+      // Period Logic
+      let matchesPeriod = true;
+      if (periodFilter !== 'All') {
+        if (periodFilter.includes('-W')) {
+          const [targetMonth, targetWeek] = periodFilter.split('-W');
+          const issueWeekNum = issueDateOnly.slice(0, 7) === targetMonth ? getWeekOfMonth(issueDateOnly) : null;
+          const estWeekNum = estDateOnly.slice(0, 7) === targetMonth ? getWeekOfMonth(estDateOnly) : null;
+          matchesPeriod = (issueWeekNum === targetWeek) || (estWeekNum === targetWeek);
+        } else {
+          matchesPeriod = issueDateOnly.slice(0, 7) === periodFilter || estDateOnly.slice(0, 7) === periodFilter;
+        }
       }
-    }
 
-    // Status Logic
-    let matchesStatus = true;
-    if (statusFilter !== 'All') {
-      if (statusFilter === 'Closed') {
-        matchesStatus = issue.status === 'Closed' || issue.status === 'Completed' || issue.status === 'Complete';
-      } else if (statusFilter === 'In Progress') {
-        matchesStatus = Boolean(issue.status && issue.status.includes('In Progress')) || issue.status === 'Open' || !issue.status;
-      } else {
-        matchesStatus = issue.status === statusFilter;
+      // Status Logic
+      let matchesStatus = true;
+      if (statusFilter !== 'All') {
+        if (statusFilter === 'Closed') {
+          matchesStatus = issue.status === 'Closed' || issue.status === 'Completed' || issue.status === 'Complete';
+        } else if (statusFilter === 'In Progress') {
+          matchesStatus = Boolean(issue.status && issue.status.includes('In Progress')) || issue.status === 'Open' || !issue.status;
+        } else {
+          matchesStatus = issue.status === statusFilter;
+        }
       }
-    }
 
-    let matchesClassification = true;
-    if (classificationFilter !== 'All') {
-      matchesClassification = issue.classification === classificationFilter;
-    }
+      let matchesClassification = true;
+      if (classificationFilter !== 'All') {
+        matchesClassification = issue.classification === classificationFilter;
+      }
 
-    let matchesLocation = true;
-    if (locationFilter !== 'All') {
-      matchesLocation = issue.location === locationFilter;
-    }
+      let matchesLocation = true;
+      if (locationFilter !== 'All') {
+        matchesLocation = issue.location === locationFilter;
+      }
 
-    let matchesGroup = true;
-    if (groupFilter !== 'All') {
-      matchesGroup = issue.group_name === groupFilter;
-    }
+      let matchesGroup = true;
+      if (groupFilter !== 'All') {
+        matchesGroup = issue.group_name === groupFilter;
+      }
 
-    let matchesName = true;
-    if (nameFilter !== 'All') {
-      const combinedName = issue.staff_name || issue.staff_id;
-      matchesName = combinedName === nameFilter;
-    }
+      let matchesName = true;
+      if (nameFilter !== 'All') {
+        const combinedName = issue.staff_name || issue.staff_id;
+        matchesName = combinedName === nameFilter;
+      }
 
-    let matchesPic = true;
-    if (picFilter !== 'All') {
-      const combinedPic = issue.pic_name || issue.pic;
-      matchesPic = combinedPic === picFilter;
-    }
+      let matchesPic = true;
+      if (picFilter !== 'All') {
+        const combinedPic = issue.pic_name || issue.pic;
+        matchesPic = combinedPic === picFilter;
+      }
 
-    return (
-      matchesSearch &&
-      matchesPeriod &&
-      matchesStatus &&
-      matchesClassification &&
-      matchesLocation &&
-      matchesGroup &&
-      matchesName &&
-      matchesPic
-    );
-  });
+      return (
+        matchesSearch &&
+        matchesPeriod &&
+        matchesStatus &&
+        matchesClassification &&
+        matchesLocation &&
+        matchesGroup &&
+        matchesName &&
+        matchesPic
+      );
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.date_time || a.created_at).getTime();
+      const dateB = new Date(b.date_time || b.created_at).getTime();
+      return dateB - dateA;
+    });
 
   const currentPeriodLabel = useMemo(() => {
     if (periodFilter === 'All') return 'All_Period';
@@ -595,7 +602,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 5. Group */}
+          {/* 5. Group (Hot Test & Engine Assembly removed) */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👥 Group:
@@ -810,7 +817,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </a>
                     )}
 
-                    {/* External Cloud Storage Link Button */}
+                    {/* External Attachment Link Button */}
                     {issue.onedrive_link && (
                       <a
                         href={issue.onedrive_link}
