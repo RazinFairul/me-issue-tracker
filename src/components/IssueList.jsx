@@ -212,22 +212,23 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return dateStr;
   };
 
+  // Urutan warna: Jingga (1/4) -> Kuning (2/4) -> Biru (3/4) -> Hijau (4/4)
   const getStatusDetails = (status) => {
     switch (status) {
       case 'In Progress (1/4)':
-        return { icon: '◔', text: 'In Progress (1/4)', bg: '#fd7e14', color: '#fff' };
+        return { icon: '◔', text: 'In Progress (1/4)', bg: '#ea580c', color: '#fff' };
       case 'In Progress (2/4)':
-        return { icon: '◑', text: 'In Progress (2/4)', bg: '#f59e0b', color: '#000' };
+        return { icon: '◑', text: 'In Progress (2/4)', bg: '#eab308', color: '#000' };
       case 'In Progress (3/4)':
         return { icon: '◕', text: 'In Progress (3/4)', bg: '#0284c7', color: '#fff' };
       case 'In Progress':
-        return { icon: '◑', text: 'In Progress (2/4)', bg: '#f59e0b', color: '#000' };
+        return { icon: '◑', text: 'In Progress (2/4)', bg: '#eab308', color: '#000' };
       case 'Closed':
       case 'Completed':
       case 'Complete':
         return { icon: '⚫', text: 'Closed (4/4)', bg: '#16a34a', color: '#fff' };
       default:
-        return { icon: '◔', text: 'In Progress (1/4)', bg: '#fd7e14', color: '#fff' };
+        return { icon: '◔', text: 'In Progress (1/4)', bg: '#ea580c', color: '#fff' };
     }
   };
 
@@ -817,7 +818,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </a>
                     )}
 
-                    {/* External Attachment Link Button */}
+                    {/* External Attachment Link Button - Outline / Putih */}
                     {issue.onedrive_link && (
                       <a
                         href={issue.onedrive_link}
@@ -826,15 +827,16 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                         title="Open external attachment link"
                         style={{ 
                           fontSize: '11px', 
-                          color: '#fff', 
+                          color: '#0d3b66', 
                           fontWeight: 'bold', 
                           textDecoration: 'none', 
                           padding: '4px 8px', 
                           borderRadius: '4px', 
-                          backgroundColor: '#0284c7',
+                          backgroundColor: '#fff',
+                          border: '1px solid #0d3b66',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '3px'
+                          gap: '4px'
                         }}
                       >
                         📁 Open Attachment ↗
