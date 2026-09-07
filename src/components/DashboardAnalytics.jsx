@@ -85,7 +85,7 @@ export default function DashboardAnalytics() {
 
     const now = new Date();
 
-    // 1. Filter Date & Group (Hot Test & Engine Assembly excluded)
+    // 1. Filter Date & Group
     const dateAndGroupFiltered = rawIssues.filter((item) => {
       if (selectedGroup !== 'all') {
         const itemGroup = (item.group_name || '').trim().toLowerCase();
@@ -245,7 +245,7 @@ export default function DashboardAnalytics() {
         .sort((a, b) => b.count - a.count)
     );
 
-    // Dataset Aging Donut (Disusun mengikut tahap kematangan)
+    // Aging Donut Data
     setAgingData([
       { name: '< 3 Days (Healthy)', count: agingUnder3, fill: '#16a34a' },
       { name: '3 - 7 Days (Moderate)', count: aging3to7, fill: '#eab308' },
@@ -279,6 +279,28 @@ export default function DashboardAnalytics() {
         x={x}
         y={y}
         fill="#333"
+        textAnchor={x > cx ? 'start' : 'end'}
+        dominantBaseline="central"
+        style={{ fontSize: '11px', fontWeight: 'bold' }}
+      >
+        {`${(percent * 100).toFixed(0)}% (${value})`}
+      </text>
+    );
+  };
+
+  // Label peratusan luar dengan garisan penunjuk kemas (tidak terpotong)
+  const renderAgingPercentageLabel = ({ cx, cy, midAngle, outerRadius, percent, value }) => {
+    if (!value || percent === 0) return null;
+    const RADIAN = Math.PI / 180;
+    const radius = outerRadius + 14;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="#1e293b"
         textAnchor={x > cx ? 'start' : 'end'}
         dominantBaseline="central"
         style={{ fontSize: '11px', fontWeight: 'bold' }}
@@ -560,7 +582,7 @@ export default function DashboardAnalytics() {
                 <h3 style={{ marginTop: 0, color: '#0d3b66', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
                   📈 Issues Created vs Closed Trend
                 </h3>
-                <div style={{ width: '100%', height: '280px' }}>
+                <div style={{ width: '100%', height: '290px' }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={trendData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" />
@@ -575,13 +597,13 @@ export default function DashboardAnalytics() {
                 </div>
               </div>
 
-              {/* Donut Chart Kemas: Tiada garisan terpotong, maklumat lengkap di Legend */}
+              {/* Donut Chart: Garisan label luar dikembalikan + kedudukan donut diturunkan sedikit agar tidak terpotong */}
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ marginTop: 0, color: '#0d3b66', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
                   ⏱️ Pending Issues Aging Breakdown
                 </h3>
 
-                <div style={{ width: '100%', height: '280px', position: 'relative' }}>
+                <div style={{ width: '100%', height: '290px', position: 'relative' }}>
                   {totalActiveBacklog === 0 ? (
                     <div style={{ textAlign: 'center', padding: '100px 0', color: '#16a34a', fontWeight: 'bold' }}>
                       🎉 Zero Unresolved Backlog (All Closed)
@@ -592,14 +614,14 @@ export default function DashboardAnalytics() {
                       <div
                         style={{
                           position: 'absolute',
-                          top: '38%',
+                          top: '46%',
                           left: '50%',
                           transform: 'translate(-50%, -50%)',
                           textAlign: 'center',
                           pointerEvents: 'none',
                         }}
                       >
-                        <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#0d3b66', display: 'block', lineHeight: 1 }}>
+                        <span style={{ fontSize: '26px', fontWeight: 'bold', color: '#0d3b66', display: 'block', lineHeight: 1 }}>
                           {totalActiveBacklog}
                         </span>
                         <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>
@@ -608,15 +630,17 @@ export default function DashboardAnalytics() {
                       </div>
 
                       <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
+                        <PieChart margin={{ top: 18, bottom: 10, left: 10, right: 10 }}>
                           <Pie
                             data={agingData}
                             cx="50%"
-                            cy="38%"
-                            innerRadius={48}
-                            outerRadius={70}
-                            paddingAngle={4}
+                            cy="46%"
+                            innerRadius={45}
+                            outerRadius={65}
+                            paddingAngle={3}
                             dataKey="count"
+                            labelLine={true}
+                            label={renderAgingPercentageLabel}
                           >
                             {agingData.map((entry, idx) => (
                               <Cell key={`aging-donut-${idx}`} fill={entry.fill} stroke="#fff" strokeWidth={2} />
@@ -625,16 +649,7 @@ export default function DashboardAnalytics() {
                           <Tooltip formatter={(val, name) => [`${val} issues`, name]} />
                           <Legend 
                             verticalAlign="bottom"
-                            wrapperStyle={{ paddingTop: '15px' }}
-                            formatter={(value, entry) => {
-                              const count = entry.payload?.count || 0;
-                              const percent = totalActiveBacklog > 0 ? Math.round((count / totalActiveBacklog) * 100) : 0;
-                              return (
-                                <span style={{ color: '#333', fontSize: '12px', fontWeight: '500', marginRight: '8px' }}>
-                                  {value}: <b>{count}</b> ({percent}%)
-                                </span>
-                              );
-                            }}
+                            wrapperStyle={{ paddingTop: '8px' }}
                           />
                         </PieChart>
                       </ResponsiveContainer>
