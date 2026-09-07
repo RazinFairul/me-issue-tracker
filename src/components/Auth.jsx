@@ -115,6 +115,9 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
 
         if (error) throw error;
 
+        // Gantikan sejarah hash pelayar terus ke '#/home' tanpa meninggalkan kesan '#login'
+        window.history.replaceState(null, '', '#/home');
+
         if (onLoginSuccess && data?.user) {
           onLoginSuccess(data.user);
         }

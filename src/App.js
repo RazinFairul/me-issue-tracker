@@ -47,8 +47,10 @@ export default function App() {
         return;
       }
 
-      if (!currentHash || currentHash === '') {
-        handleLogout();
+      // Jika sudah login dan hash kosong / login (akibat tekan back), kekalkan di dashboard 'home'
+      if (!currentHash || currentHash === '' || currentHash === 'login') {
+        window.history.replaceState(null, '', '#/home');
+        setActiveTab('home');
       } else {
         const validTabs = ['home', 'create', 'list', 'analytics', 'tagmap'];
         if (validTabs.includes(currentHash)) {
@@ -68,11 +70,7 @@ export default function App() {
   };
 
   const handleBackNavigation = () => {
-    if (activeTab === 'home') {
-      handleLogout();
-    } else {
-      navigateTo('home');
-    }
+    navigateTo('home');
   };
 
   const openLogin = () => {
@@ -135,8 +133,8 @@ export default function App() {
       if (session) {
         fetchProfile(session.user);
         const currentHash = window.location.hash.replace('#/', '').replace('#', '');
-        if (!currentHash) {
-          window.location.hash = '#/home';
+        if (!currentHash || currentHash === 'login') {
+          window.history.replaceState(null, '', '#/home');
           setActiveTab('home');
         }
       }
@@ -151,6 +149,12 @@ export default function App() {
       setSession(session);
       if (session && !isRecoveryMode) {
         fetchProfile(session.user);
+        // Pastikan hash diganti kepada home tanpa menyimpan jejak login di browser history
+        const currentHash = window.location.hash.replace('#/', '').replace('#', '');
+        if (!currentHash || currentHash === 'login') {
+          window.history.replaceState(null, '', '#/home');
+          setActiveTab('home');
+        }
       } else if (!session) {
         setUserProfile(null);
         window.location.hash = '';
@@ -219,7 +223,6 @@ export default function App() {
     session.user?.user_metadata?.staff_id || 
     'STAFF';
 
-  // Sandaran avatar_url daripada jadual profil atau auth user_metadata
   const currentAvatarUrl = 
     userProfile?.avatar_url || 
     session.user?.user_metadata?.avatar_url;
@@ -287,9 +290,9 @@ export default function App() {
                   backgroundColor: '#e2e8f0', 
                   display: 'flex', 
                   alignItems: 'center', 
-                  justifyContent: 'center',
-                  border: '2px solid rgba(255,255,255,0.6)',
-                  flexShrink: 0
+                  justifyContent: 'center', 
+                  border: '2px solid rgba(255,255,255,0.6)', 
+                  flexShrink: 0 
                 }}
               >
                 {currentAvatarUrl ? (
