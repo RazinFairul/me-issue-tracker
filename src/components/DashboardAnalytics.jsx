@@ -205,11 +205,11 @@ export default function DashboardAnalytics() {
       closed: closedCount,
     });
 
-    // Kira peratusan untuk Garisan Merah (Line)
+    // Kira peratusan untuk label garisan
     const closedPercent = totalCount > 0 ? Math.round((closedCount / totalCount) * 100) : 0;
     const inProgressPercent = totalCount > 0 ? Math.round((inProgressCount / totalCount) * 100) : 0;
 
-    // Data Bar + Garisan Merah (ComposedChart mengikut gambar rujukan)
+    // Data Bar + Titik tepat atas bar
     setStatusComboData([
       {
         status: 'Total',
@@ -289,7 +289,7 @@ export default function DashboardAnalytics() {
     );
   };
 
-  // Custom label nombor di bahagian tengah bar
+  // Label nombor di bahagian tengah bar
   const renderInsideBarLabel = (props) => {
     const { x, y, width, height, value } = props;
     if (!value || height < 14) return null;
@@ -307,27 +307,10 @@ export default function DashboardAnalytics() {
     );
   };
 
-  // Custom label peratusan di atas titik garisan merah
-  const renderLinePercentageLabel = (props) => {
-    const { x, y, value } = props;
-    if (value === undefined || value === null) return null;
-    return (
-      <text
-        x={x}
-        y={y - 12}
-        fill="#b91c1c"
-        textAnchor="middle"
-        style={{ fontSize: '12px', fontWeight: 'bold' }}
-      >
-        {`${value}%`}
-      </text>
-    );
-  };
-
   const displayedLocationData = showAllLocations ? locationData : locationData.slice(0, 20);
   const chartWidth = showAllLocations ? Math.max(1000, locationData.length * 45) : '100%';
   const closeRate = stats.total > 0 ? ((stats.closed / stats.total) * 100).toFixed(1) : 0;
-  const maxCount = Math.max(stats.total, 5);
+  const maxAxisValue = Math.max(stats.total, 1);
 
   return (
     <div style={{ padding: '20px', maxWidth: '1300px', margin: '0 auto', fontFamily: 'Arial, sans-serif', backgroundColor: '#f4f6f9', minHeight: '100vh' }}>
@@ -462,34 +445,34 @@ export default function DashboardAnalytics() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             
-            {/* Row 1: Issue Status ComposedChart (Bar + Line Merah) & Classification (Pie Chart) */}
+            {/* Row 1: Issue Status ComposedChart (Bar + Line Merah Tepat Atas Bar) & Classification */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
               
-              {/* KAD KIRI: ComposedChart (Bar & Garisan Merah) */}
+              {/* KAD KIRI: ComposedChart (Bar & Garisan Merah Tepat Atas Bar) */}
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ marginTop: 0, color: '#0d3b66', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
                   📊 Issue Status & Progress Rate {selectedGroup !== 'all' && `(${selectedGroup})`}
                 </h3>
                 <div style={{ width: '100%', height: '280px' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={statusComboData} margin={{ top: 30, right: 20, left: -10, bottom: 5 }}>
+                    <ComposedChart data={statusComboData} margin={{ top: 35, right: 20, left: -10, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="status" tick={{ fontWeight: 'bold', fontSize: 12 }} />
                       
-                      {/* Paksi Kiri: Kiraan Isu */}
-                      <YAxis yAxisId="left" allowDecimals={false} domain={[0, maxCount + 2]} />
+                      {/* Paksi Kiri: Tetapkan max tepat kepada maxAxisValue supaya bar 100% dan titik 100% berada pada skala yang sama */}
+                      <YAxis yAxisId="left" allowDecimals={false} domain={[0, maxAxisValue]} />
                       
-                      {/* Paksi Kanan: Peratusan (%) */}
+                      {/* Paksi Kanan: Peratusan 0% - 100% */}
                       <YAxis yAxisId="right" orientation="right" domain={[0, 100]} unit="%" />
                       
                       <Tooltip 
-                        formatter={(val, name) => [
-                          name === 'Count' ? `${val} issues` : `${val}%`, 
+                        formatter={(val, name, item) => [
+                          name === 'Count' ? `${val} issues` : `${item.payload.percentage}%`, 
                           name
                         ]} 
                       />
 
-                      {/* Bar Bertingkat / Lajur dengan Label Nombor di dalam */}
+                      {/* Bar Chart dengan nombor di dalam bar */}
                       <Bar 
                         yAxisId="left" 
                         dataKey="count" 
@@ -503,23 +486,38 @@ export default function DashboardAnalytics() {
                         ))}
                       </Bar>
 
-                      {/* Garisan Merah dengan Titik & Label Peratusan (%) */}
+                      {/* Garisan Merah dikaitkan ke yAxisId="left" dan dataKey="count" supaya titik merah jatuh tepat di atas bar */}
                       <Line 
-                        yAxisId="right" 
+                        yAxisId="left" 
                         type="linear" 
-                        dataKey="percentage" 
+                        dataKey="count" 
                         name="Rate (%)"
                         stroke="#b91c1c" 
                         strokeWidth={3} 
-                        dot={{ r: 4, fill: '#b91c1c' }}
-                        label={renderLinePercentageLabel}
+                        dot={{ r: 5, fill: '#b91c1c' }}
+                        label={(props) => {
+                          const { x, y, index } = props;
+                          const percent = statusComboData[index]?.percentage;
+                          if (percent === undefined || percent === null) return null;
+                          return (
+                            <text
+                              x={x}
+                              y={y - 12}
+                              fill="#b91c1c"
+                              textAnchor="middle"
+                              style={{ fontSize: '12px', fontWeight: 'bold' }}
+                            >
+                              {`${percent}%`}
+                            </text>
+                          );
+                        }}
                       />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
-              {/* KAD KANAN: Classification Distribution (PIE CHART dengan Cross-Filter) */}
+              {/* KAD KANAN: Classification Distribution (PIE CHART) */}
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
                   <h3 style={{ margin: 0, color: '#0d3b66', fontSize: '16px' }}>
