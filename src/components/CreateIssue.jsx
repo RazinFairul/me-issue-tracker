@@ -16,7 +16,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
 
-  // Fungsi mengendalikan pemilihan fail & mampatan gambar
+  // Handle file selection and automatic image compression
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) {
@@ -24,31 +24,31 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       return;
     }
 
-    // Jika fail ialah imej, mampatkan terlebih dahulu
+    // Compress image if uploaded file is an image
     if (selectedFile.type.startsWith('image/')) {
       const options = {
-        maxSizeMB: 0.5,           // Hadkan saiz fail kepada ~500 KB ke bawah
-        maxWidthOrHeight: 1280,   // Resolusi maksima 1280px (kualiti HD yang tajam untuk dokumentasi)
+        maxSizeMB: 0.5,           // Maximum size limit ~500 KB
+        maxWidthOrHeight: 1280,   // Max resolution 1280px (HD clarity for issue tracking)
         useWebWorker: true,
       };
 
       try {
         setCompressing(true);
         const compressedBlob = await imageCompression(selectedFile, options);
-        // Tukar blob kembali kepada objek File supaya nama dan format asal kekal
+        // Convert blob back to File object to retain filename and properties
         const compressedFile = new File([compressedBlob], selectedFile.name, {
           type: selectedFile.type,
           lastModified: Date.now(),
         });
         setFile(compressedFile);
       } catch (error) {
-        console.error('Pemampatan imej gagal, menggunakan fail asal:', error);
+        console.error('Image compression failed, using original file:', error);
         setFile(selectedFile);
       } finally {
         setCompressing(false);
       }
     } else {
-      // Fail dokumen / PDF disimpan tanpa dimampatkan
+      // Keep PDF or documents uncompressed
       setFile(selectedFile);
     }
   };
@@ -56,14 +56,14 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (compressing) {
-      alert('Sila tunggu, gambar sedang dimampatkan...');
+      alert('Please wait, image is still being compressed...');
       return;
     }
 
     setLoading(true);
 
     try {
-      // 1. Dapatkan data pengguna yang sedang log masuk
+      // 1. Get current logged-in user
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
@@ -80,7 +80,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
 
       let fileUrl = null;
 
-      // 2. Upload fail lampiran jika ada
+      // 2. Upload file attachment if available
       if (file) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -101,7 +101,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         fileUrl = urlData.publicUrl;
       }
 
-      // 3. Simpan isu ke Supabase bersama maklumat pemilik & pautan OneDrive
+      // 3. Save issue record to Supabase
       const { error: insertError } = await supabase.from('issues').insert([
         {
           what_issue: whatIssue,
@@ -288,28 +288,28 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '12px' }}>
-            <small style={{ color: '#666' }}>Max: 50 MB (Gambar dimampatkan automatik)</small>
-            {compressing && <span style={{ color: '#0284c7', fontWeight: 'bold' }}>⏳ Memampatkan imej...</span>}
+            <small style={{ color: '#666' }}>Max: 50 MB (Images will be automatically compressed)</small>
+            {compressing && <span style={{ color: '#0284c7', fontWeight: 'bold' }}>⏳ Compressing image...</span>}
             {!compressing && file && file.type.startsWith('image/') && (
-              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>✓ {(file.size / 1024).toFixed(0)} KB siap</span>
+              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>✓ {(file.size / 1024).toFixed(0)} KB ready</span>
             )}
           </div>
         </div>
 
-        {/* OneDrive / SharePoint Attachment Link */}
+        {/* External Cloud Link */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-            OneDrive / SharePoint Link (Optional):
+            External Document / Video Link (Optional):
           </label>
           <input 
             type="url" 
             value={onedriveLink} 
             onChange={(e) => setOnedriveLink(e.target.value)} 
-            placeholder="https://company-my.sharepoint.com/:v:/g/..." 
+            placeholder="https://..." 
             style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
           />
           <small style={{ color: '#666', display: 'block', marginTop: '4px' }}>
-            *Gunakan ruangan ini untuk menampal pautan perkongsian video mesin atau dokumen manual PDF yang tebal.
+            *Paste shareable links here for large video clips, OneDrive files, SharePoint folders, or Google Drive documents. Ensure link permissions are accessible to other team members.
           </small>
         </div>
 

@@ -832,7 +832,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                           gap: '3px'
                         }}
                       >
-                        📁 OneDrive ↗
+                        📁 Open Attachment ↗
                       </a>
                     )}
 
