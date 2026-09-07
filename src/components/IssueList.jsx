@@ -428,7 +428,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             gap: '6px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
           }}
-          title="Klik untuk muat turun fail Excel berdasarkan pilihan Group & Month semasa"
+          title="Click to download Excel based on the selected Group & Month."
         >
           📥 Export to Excel 
           {(groupFilter !== 'All' || periodFilter !== 'All') && (
