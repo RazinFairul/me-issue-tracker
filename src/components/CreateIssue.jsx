@@ -296,20 +296,20 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </div>
         </div>
 
-        {/* External Cloud Link */}
+        {/* Attachment Link */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-            External Document / Video Link (Optional):
+            Attachment Link (Optional):
           </label>
           <input 
             type="url" 
             value={onedriveLink} 
             onChange={(e) => setOnedriveLink(e.target.value)} 
-            placeholder="https://..." 
+            placeholder="Enter Link" 
             style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
           />
           <small style={{ color: '#666', display: 'block', marginTop: '4px' }}>
-            *Paste shareable links here for large video clips, OneDrive files, SharePoint folders, or Google Drive documents. Ensure link permissions are accessible to other team members.
+            *Recommended for large files or videos exceeding standard size (OneDrive, SharePoint, or Google Drive).
           </small>
         </div>
 
