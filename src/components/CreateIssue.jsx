@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import imageCompression from 'browser-image-compression';
 
@@ -15,6 +15,18 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [onedriveLink, setOnedriveLink] = useState('');
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
+
+  // Ref untuk mengosongkan pilihan fail pada input browser
+  const fileInputRef = useRef(null);
+
+  // Batalkan / padam fail yang dipilih
+  const handleRemoveFile = () => {
+    setFile(null);
+    setCompressing(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Handle file selection and automatic image compression
   const handleFileChange = async (e) => {
@@ -48,7 +60,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         setCompressing(false);
       }
     } else {
-      // Keep PDF or documents uncompressed
+      // Keep PDF, video, or documents uncompressed
       setFile(selectedFile);
     }
   };
@@ -276,16 +288,49 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           />
         </div>
 
-        {/* File Uploads */}
+        {/* File Uploads dengan Butang Pangkah (Cancel) */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>File Uploads:</label>
-          <input 
-            type="file" 
-            accept="image/*,video/*,.pdf,.doc,.docx"
-            onChange={handleFileChange} 
-            style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input 
+              ref={fileInputRef}
+              type="file" 
+              accept="image/*,video/*,.pdf,.doc,.docx"
+              onChange={handleFileChange} 
+              style={{ 
+                flex: 1, 
+                padding: '8px', 
+                borderRadius: '5px', 
+                border: '1px solid #ccc', 
+                boxSizing: 'border-box',
+                backgroundColor: '#fff'
+              }}
+            />
+            {file && (
+              <button
+                type="button"
+                onClick={handleRemoveFile}
+                title="Cancel and remove selected file"
+                style={{
+                  backgroundColor: '#fee2e2',
+                  color: '#dc2626',
+                  border: '1px solid #fca5a5',
+                  borderRadius: '5px',
+                  padding: '8px 12px',
+                  fontWeight: 'bold',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                ✕ Cancel
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '12px', flexWrap: 'wrap', gap: '4px' }}>
             <small style={{ color: '#666' }}>Max: 50 MB (Images will be automatically compressed)</small>
             {compressing && <span style={{ color: '#0284c7', fontWeight: 'bold' }}>⏳ Compressing image...</span>}
             {!compressing && file && file.type.startsWith('image/') && (
