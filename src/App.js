@@ -9,6 +9,8 @@ import TagMapUpdates from './components/TagMap';
 import DashboardAnalytics from './components/DashboardAnalytics';
 import EditProfileModal from './components/EditProfileModal';
 
+const TIMEOUT_DURATION_MS = 5 * 60 * 1000; // 5 minit (300,000 ms)
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -23,17 +25,59 @@ export default function App() {
   );
 
   const handleLogout = async () => {
+    localStorage.removeItem('me_last_active_time');
     await supabase.auth.signOut();
     window.location.hash = '';
     setActiveTab('home');
     setShowAuthModal(false);
     setIsRecoveryMode(false);
     setUserProfile(null);
+    setSession(null);
   };
+
+  // Logik Auto-Logout 5 Minit Jika Keluar Website
+  useEffect(() => {
+    if (!session) return;
+
+    // 1. Semak sama ada sudah terbiar melebihi 5 minit sejak kali terakhir keluar
+    const lastActive = localStorage.getItem('me_last_active_time');
+    const now = Date.now();
+
+    if (lastActive) {
+      const timeDiff = now - parseInt(lastActive, 10);
+      if (timeDiff > TIMEOUT_DURATION_MS) {
+        alert('Sesi anda telah tamat tempoh kerana tidak aktif melebihi 5 minit. Sila log masuk semula.');
+        handleLogout();
+        return;
+      }
+    }
+
+    // Kemas kini waktu aktif sekarang
+    localStorage.setItem('me_last_active_time', String(now));
+
+    // 2. Kemas kini timestamp setiap kali pengguna berinteraksi atau selagi tab masih aktif
+    const updateActiveTime = () => {
+      localStorage.setItem('me_last_active_time', String(Date.now()));
+    };
+
+    const intervalId = setInterval(updateActiveTime, 10000); // refresh timestamp setiap 10 saat jika tab terbuka
+
+    window.addEventListener('mousemove', updateActiveTime);
+    window.addEventListener('keydown', updateActiveTime);
+    window.addEventListener('click', updateActiveTime);
+    window.addEventListener('beforeunload', updateActiveTime); // simpan waktu tepat semasa tab ditutup/keluar
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('mousemove', updateActiveTime);
+      window.removeEventListener('keydown', updateActiveTime);
+      window.removeEventListener('click', updateActiveTime);
+      window.removeEventListener('beforeunload', updateActiveTime);
+    };
+  }, [session]);
 
   useEffect(() => {
     const handleHashChange = () => {
-      // Jika dalam mod reset password, jangan benarkan tukar skrin lain
       if (isRecoveryMode) return;
 
       const currentHash = window.location.hash.replace('#/', '').replace('#', '');
@@ -47,7 +91,7 @@ export default function App() {
         return;
       }
 
-      // Jika sudah login dan hash kosong / login (akibat tekan back), kekalkan di dashboard 'home'
+      // Jika sudah login dan user tekan back sampai ke root/login, kekalkan di home
       if (!currentHash || currentHash === '' || currentHash === 'login') {
         window.history.replaceState(null, '', '#/home');
         setActiveTab('home');
@@ -83,18 +127,15 @@ export default function App() {
     setShowAuthModal(false);
   };
 
-  // Fungsi komprehensif untuk memuat profil pengguna
   const fetchProfile = async (currentUser) => {
     if (!currentUser) return;
     try {
-      // 1. Cuba cari mengikut id auth
       let { data } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', currentUser.id)
         .maybeSingle();
 
-      // 2. Sekiranya tiada, cuba semak mengikut staff_id
       const metadataStaffId = currentUser.user_metadata?.staff_id;
       if (!data && metadataStaffId) {
         const { data: byStaffId } = await supabase
@@ -105,7 +146,6 @@ export default function App() {
         data = byStaffId;
       }
 
-      // 3. Sekiranya tiada, cuba semak mengikut email
       if (!data && currentUser.email) {
         const { data: byEmail } = await supabase
           .from('profiles')
@@ -129,8 +169,16 @@ export default function App() {
         setIsRecoveryMode(true);
         return;
       }
-      setSession(session);
+
       if (session) {
+        // Semak auto logout 5 minit sebelum membenarkan sesi diteruskan
+        const lastActive = localStorage.getItem('me_last_active_time');
+        if (lastActive && (Date.now() - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS)) {
+          handleLogout();
+          return;
+        }
+
+        setSession(session);
         fetchProfile(session.user);
         const currentHash = window.location.hash.replace('#/', '').replace('#', '');
         if (!currentHash || currentHash === 'login') {
@@ -146,10 +194,16 @@ export default function App() {
         return;
       }
 
-      setSession(session);
       if (session && !isRecoveryMode) {
+        // Semak tempoh tamat jika token disegarkan
+        const lastActive = localStorage.getItem('me_last_active_time');
+        if (lastActive && (Date.now() - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS)) {
+          handleLogout();
+          return;
+        }
+
+        setSession(session);
         fetchProfile(session.user);
-        // Pastikan hash diganti kepada home tanpa menyimpan jejak login di browser history
         const currentHash = window.location.hash.replace('#/', '').replace('#', '');
         if (!currentHash || currentHash === 'login') {
           window.history.replaceState(null, '', '#/home');
@@ -169,7 +223,7 @@ export default function App() {
     navigateTo('list');
   };
 
-  // 1. JIKA DALAM MOD RECOVERY (LEPAS KLIK LINK RESET PASSWORD DI EMEL)
+  // 1. RECOVERY MODE
   if (isRecoveryMode) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#f4f6f9', padding: '40px 20px' }}>
@@ -204,7 +258,10 @@ export default function App() {
           >
             ⬅️ Back to Homepage
           </button>
-          <Auth onLoginSuccess={() => setShowAuthModal(false)} />
+          <Auth onLoginSuccess={() => {
+            localStorage.setItem('me_last_active_time', String(Date.now()));
+            setShowAuthModal(false);
+          }} />
         </div>
       );
     }
@@ -272,7 +329,6 @@ export default function App() {
       {/* Main Content View */}
       {activeTab === 'home' && (
         <div className="dashboard-grid">
-          {/* Main Left Hero Card */}
           <div className="hero-card">
             <div className="hero-title">
               <h1>Manufacturing Engineering</h1>
@@ -314,7 +370,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* 4 Menu Cards */}
           <div className="menu-card card-list" onClick={() => navigateTo('list')}>
             <div className="card-overlay">
               <h3>List of Issues</h3>
