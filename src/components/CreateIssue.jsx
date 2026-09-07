@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import imageCompression from 'browser-image-compression';
 
 export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [whatIssue, setWhatIssue] = useState('');
@@ -12,9 +13,52 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [estimatedClosing, setEstimatedClosing] = useState('');
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
+
+  // Fungsi mengendalikan pemilihan fail & mampatan gambar
+  const handleFileChange = async (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) {
+      setFile(null);
+      return;
+    }
+
+    // Jika fail ialah imej, mampatkan terlebih dahulu
+    if (selectedFile.type.startsWith('image/')) {
+      const options = {
+        maxSizeMB: 0.5,           // Hadkan saiz fail kepada ~500 KB ke bawah
+        maxWidthOrHeight: 1280,   // Resolusi maksima 1280px (kualiti HD yang tajam untuk dokumentasi)
+        useWebWorker: true,
+      };
+
+      try {
+        setCompressing(true);
+        const compressedBlob = await imageCompression(selectedFile, options);
+        // Tukar blob kembali kepada objek File supaya nama dan format asal kekal
+        const compressedFile = new File([compressedBlob], selectedFile.name, {
+          type: selectedFile.type,
+          lastModified: Date.now(),
+        });
+        setFile(compressedFile);
+      } catch (error) {
+        console.error('Pemampatan imej gagal, menggunakan fail asal:', error);
+        setFile(selectedFile);
+      } finally {
+        setCompressing(false);
+      }
+    } else {
+      // Fail dokumen / PDF disimpan tanpa dimampatkan
+      setFile(selectedFile);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (compressing) {
+      alert('Sila tunggu, gambar sedang dimampatkan...');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -56,7 +100,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         fileUrl = urlData.publicUrl;
       }
 
-      // 3. Simpan isu ke Supabase bersama maklumat pemilik (user_id & user_email)
+      // 3. Simpan isu ke Supabase bersama maklumat pemilik
       const { error: insertError } = await supabase.from('issues').insert([
         {
           what_issue: whatIssue,
@@ -151,6 +195,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             <option value="Assembly Line" style={{ color: '#000' }}>Assembly Line</option>
             <option value="Test Line" style={{ color: '#000' }}>Test Line</option>
             <option value="Transmission Line" style={{ color: '#000' }}>Transmission Line</option>
+            <option value="Hot Test" style={{ color: '#000' }}>Hot Test</option>
+            <option value="Engine Assembly" style={{ color: '#000' }}>Engine Assembly</option>
             <option value="IT" style={{ color: '#000' }}>IT</option>
           </select>
         </div>
@@ -236,30 +282,34 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           <input 
             type="file" 
             accept="image/*,video/*,.pdf,.doc,.docx"
-            onChange={(e) => setFile(e.target.files[0])} 
+            onChange={handleFileChange} 
             style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
           />
-          <small style={{ color: '#666', display: 'block', marginTop: '4px' }}>
-            Max: 50 MB
-          </small>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '12px' }}>
+            <small style={{ color: '#666' }}>Max: 50 MB (Gambar akan dimampatkan secara automatik)</small>
+            {compressing && <span style={{ color: '#0284c7', fontWeight: 'bold' }}>⏳ Memampatkan imej...</span>}
+            {!compressing && file && file.type.startsWith('image/') && (
+              <span style={{ color: '#16a34a', fontWeight: 'bold' }}>✓ {(file.size / 1024).toFixed(0)} KB siap</span>
+            )}
+          </div>
         </div>
 
         <button 
           type="submit" 
-          disabled={loading}
+          disabled={loading || compressing}
           style={{ 
             padding: '12px', 
-            backgroundColor: '#0d3b66', 
+            backgroundColor: loading || compressing ? '#94a3b8' : '#0d3b66', 
             color: '#fff', 
             border: 'none', 
             borderRadius: '5px', 
             fontWeight: 'bold', 
             fontSize: '16px', 
-            cursor: loading ? 'not-allowed' : 'pointer', 
+            cursor: loading || compressing ? 'not-allowed' : 'pointer', 
             marginTop: '10px' 
           }}
         >
-          {loading ? 'Submitting...' : 'Submit Issue'}
+          {loading ? 'Submitting...' : compressing ? 'Optimizing Image...' : 'Submit Issue'}
         </button>
       </form>
     </div>
