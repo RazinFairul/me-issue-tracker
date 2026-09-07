@@ -114,20 +114,28 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return Array.from(new Set(issues.map((i) => i.pic_name || i.pic).filter(Boolean))).sort();
   }, [issues]);
 
-  // Delete issue and automatically purge image storage bucket
+  // Delete issue and automatically purge image storage bucket cleanly
   const handleDeleteIssue = async (issue) => {
     const confirmDelete = window.confirm(`Are you sure you want to delete "${issue.what_issue || 'this issue'}"?`);
     if (!confirmDelete) return;
 
     setIssues((prevIssues) => prevIssues.filter((item) => item.id !== issue.id));
 
-    // 1. Remove image from bucket if exists
+    // 1. Remove image/file from Supabase Storage bucket if exists
     if (issue.file_url) {
       try {
-        const urlParts = issue.file_url.split('/issue-attachments/');
-        if (urlParts.length > 1) {
-          const storagePath = decodeURIComponent(urlParts[1]);
-          await supabase.storage.from('issue-attachments').remove([storagePath]);
+        const marker = '/issue-attachments/';
+        if (issue.file_url.includes(marker)) {
+          const fullPath = issue.file_url.split(marker)[1].split('?')[0];
+          const cleanPath = decodeURIComponent(fullPath);
+
+          const { error: storageError } = await supabase.storage
+            .from('issue-attachments')
+            .remove([cleanPath]);
+
+          if (storageError) {
+            console.warn('Storage delete warning:', storageError.message);
+          }
         }
       } catch (err) {
         console.warn('Failed to delete file from storage:', err);
@@ -603,7 +611,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 5. Group (Hot Test & Engine Assembly removed) */}
+          {/* 5. Group */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👥 Group:
@@ -832,11 +840,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                           textDecoration: 'none', 
                           padding: '4px 8px', 
                           borderRadius: '4px', 
-                          backgroundColor: '#fff',
-                          border: '1px solid #0d3b66',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px'
+                          backgroundColor: '#fff', 
+                          border: '1px solid #0d3b66', 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px' 
                         }}
                       >
                         📁 Open Attachment ↗
