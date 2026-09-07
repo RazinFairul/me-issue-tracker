@@ -6,7 +6,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Filter States - SATU DROPDOWN SAHAJA UNTUK PERIOD (MONTH & WEEK)
+  // Filter States - Single dynamic Period dropdown (Month & Week)
   const [searchTerm, setSearchTerm] = useState('');
   const [periodFilter, setPeriodFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -54,7 +54,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     fetchIssues();
   }, [refreshTrigger]);
 
-  // Helper untuk menentukan nombor minggu dalam bulan (1 - 5)
+  // Helper function to calculate week of month (1 - 5)
   const getWeekOfMonth = (dateString) => {
     if (!dateString) return null;
     const dateObj = new Date(dateString);
@@ -63,7 +63,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return String(Math.min(5, Math.ceil(dayOfMonth / 7)));
   };
 
-  // Jana pilihan dropdown Month & Week secara dinamik daripada pangkalan data
+  // Generate dynamic Month & Week dropdown options from dataset
   const periodOptions = useMemo(() => {
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
@@ -113,14 +113,14 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return Array.from(new Set(issues.map((i) => i.pic_name || i.pic).filter(Boolean))).sort();
   }, [issues]);
 
-  // Padam isu dan bersihkan lampiran gambar dalam Storage bucket secara serentak
+  // Delete issue and automatically purge image storage bucket
   const handleDeleteIssue = async (issue) => {
     const confirmDelete = window.confirm(`Are you sure you want to delete "${issue.what_issue || 'this issue'}"?`);
     if (!confirmDelete) return;
 
     setIssues((prevIssues) => prevIssues.filter((item) => item.id !== issue.id));
 
-    // 1. Bersihkan fail imej dari bucket issue-attachments jika wujud
+    // 1. Remove image from bucket if exists
     if (issue.file_url) {
       try {
         const urlParts = issue.file_url.split('/issue-attachments/');
@@ -129,11 +129,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           await supabase.storage.from('issue-attachments').remove([storagePath]);
         }
       } catch (err) {
-        console.warn('Gagal memadam fail dari storage:', err);
+        console.warn('Failed to delete file from storage:', err);
       }
     }
 
-    // 2. Padam rekod dari pangkalan data
+    // 2. Delete database record
     const { error } = await supabase.from('issues').delete().eq('id', issue.id);
 
     if (error) {
@@ -255,7 +255,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setUpdating(false);
   };
 
-  // Logik Penapisan
+  // Filter Logic
   const filteredIssues = issues.filter((issue) => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
@@ -274,7 +274,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const issueDateOnly = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
     const estDateOnly = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
 
-    // Logik Period
+    // Period Logic
     let matchesPeriod = true;
     if (periodFilter !== 'All') {
       if (periodFilter.includes('-W')) {
@@ -287,7 +287,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       }
     }
 
-    // Logik Status
+    // Status Logic
     let matchesStatus = true;
     if (statusFilter !== 'All') {
       if (statusFilter === 'Closed') {
@@ -353,10 +353,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // FUNGSI EKSPORT KE EXCEL (CSV UTF-8)
+  // Export to Excel (CSV UTF-8)
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
-      alert('Tiada data isu untuk dieksport dengan penapis semasa.');
+      alert('No issue data available to export with the current filters.');
       return;
     }
 
@@ -374,7 +374,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       'Status',
       'Progress Notes',
       'File Attachment URL',
-      'OneDrive Link'
+      'External Cloud Link'
     ];
 
     const escapeCsv = (str) => {
@@ -446,7 +446,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             gap: '6px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
           }}
-          title="Click to download Excel based on the selected Group & Month."
+          title="Click to download Excel report based on the active filters."
         >
           📥 Export to Excel 
           {(groupFilter !== 'All' || periodFilter !== 'All') && (
@@ -460,7 +460,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       {/* Search & Filter Section */}
       <div style={{ backgroundColor: '#fff', padding: '16px 18px', borderRadius: '8px', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', marginBottom: '25px' }}>
         
-        {/* Baris 1: Main Search */}
+        {/* Row 1: Main Search */}
         <div style={{ marginBottom: '14px' }}>
           <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '6px' }}>
             🔍 Search
@@ -468,7 +468,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <input
               type="text"
-              placeholder="Search..."
+              placeholder="Search by issue title, description, staff, location..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
@@ -501,7 +501,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Baris 2: Dropdowns Grid */}
+        {/* Row 2: Dropdowns Grid */}
         <div 
           style={{ 
             display: 'grid', 
@@ -652,7 +652,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         </div>
       </div>
 
-      {/* Paparan Senarai Isu */}
+      {/* Issues Display */}
       {loading ? (
         <p style={{ textAlign: 'center', padding: '40px' }}>Loading issues...</p>
       ) : filteredIssues.length === 0 ? (
@@ -764,7 +764,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                                 setNewEstClosingDate(issue.estimated_closing ? issue.estimated_closing.split('T')[0].split(' ')[0] : '');
                               }}
                               style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}
-                              title="Edit Est. Closing"
+                              title="Edit Est. Closing Date"
                             >
                               ✏️
                             </button>
@@ -800,7 +800,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   </span>
 
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {/* Butang Lihat Imej / Lampiran Terus */}
+                    {/* Direct Image/Attachment View */}
                     {issue.file_url && (
                       <a
                         href={issue.file_url}
@@ -812,13 +812,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </a>
                     )}
 
-                    {/* Butang Capaian Pantas Microsoft OneDrive */}
+                    {/* Universal External / Cloud Storage Link Button */}
                     {issue.onedrive_link && (
                       <a
                         href={issue.onedrive_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Buka lampiran video/fail besar di Microsoft OneDrive"
+                        title="Open external cloud link (OneDrive, Google Drive, SharePoint, etc.)"
                         style={{ 
                           fontSize: '11px', 
                           color: '#fff', 
@@ -826,13 +826,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                           textDecoration: 'none', 
                           padding: '4px 8px', 
                           borderRadius: '4px', 
-                          backgroundColor: '#0078d4',
+                          backgroundColor: '#0284c7',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '3px'
                         }}
                       >
-                        📁 Open Attachment ↗
+                        🔗 Cloud Link ↗
                       </a>
                     )}
 
