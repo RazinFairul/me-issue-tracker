@@ -363,7 +363,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // Export to Native Excel (.xlsx) mengikut susunan lajur laporan kilang
+  // Export to Native Excel (.xlsx) mengikut susunan tepat yang diminta
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('No issue data available to export with the current filters.');
@@ -391,29 +391,25 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       const formattedDate = rawDate ? formatDateTime(rawDate) : '-';
       const formattedEstClosing = i.estimated_closing ? formatDateOnly(i.estimated_closing) : '-';
 
-      const fullDescription = i.what_issue 
-        ? `[${i.what_issue}] ${i.description ? '- ' + i.description : ''}`
-        : (i.description || '-');
-
       const cleanProgressNote = i.progress_note 
         ? i.progress_note.replace(/(\r\n|\n|\r)/gm, ' ').trim() 
         : '-';
 
       return {
         'No.': index + 1,
-        'Project / Group': i.group_name || '-',
-        'Reported By': i.staff_name || i.staff_id || '-',
-        'Opening Date & Time': formattedDate,
-        'Issue Class': i.classification || '-',
+        'Reported by': i.staff_name || i.staff_id || '-',
+        'Date & Time': formattedDate,
+        'Issue Classification': i.classification || '-',
         'Closing Status': getHarveyBall(exportStatus),
-        'Location / Op No.': i.location || '-',
-        'Issue Description': fullDescription,
-        'Responsible Person (PIC)': i.pic_name || i.pic || '-',
-        'Progress Updates': cleanProgressNote,
-        'Estimated Closing': formattedEstClosing,
-        'Status': exportStatus.includes('Closed') ? 'Closed' : 'Open',
-        'Attachment URL': i.file_url || '-',
-        'External Link': i.onedrive_link || '-'
+        'Issue': i.what_issue || '-',
+        'Issue Description': i.description || '-',
+        'Group': i.group_name || '-',
+        'Location / Station': i.location || '-',
+        'Person in Charge': i.pic_name || i.pic || '-',
+        'Progress': cleanProgressNote,
+        'Estimate Closing Date': formattedEstClosing,
+        'File Attachement URL': i.file_url || '-',
+        'External Attachment Link': i.onedrive_link || '-'
       };
     });
 
@@ -421,27 +417,27 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     worksheet['!cols'] = [
       { wch: 6 },   // No.
-      { wch: 18 },  // Project / Group
-      { wch: 20 },  // Reported By
-      { wch: 22 },  // Opening Date & Time
-      { wch: 12 },  // Issue Class
+      { wch: 20 },  // Reported by
+      { wch: 22 },  // Date & Time
+      { wch: 18 },  // Issue Classification
       { wch: 16 },  // Closing Status
-      { wch: 18 },  // Location / Op No.
-      { wch: 42 },  // Issue Description
-      { wch: 22 },  // Responsible Person (PIC)
-      { wch: 42 },  // Progress Updates
-      { wch: 16 },  // Estimated Closing
-      { wch: 12 },  // Status
-      { wch: 40 },  // Attachment URL
-      { wch: 40 }   // External Link
+      { wch: 28 },  // Issue
+      { wch: 38 },  // Issue Description
+      { wch: 20 },  // Group
+      { wch: 20 },  // Location / Station
+      { wch: 22 },  // Person in Charge
+      { wch: 40 },  // Progress
+      { wch: 20 },  // Estimate Closing Date
+      { wch: 45 },  // File Attachement URL
+      { wch: 45 }   // External Attachment Link
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Open Issue List');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Issues Report');
 
     const today = new Date().toISOString().slice(0, 10);
     const groupLabel = groupFilter === 'All' ? 'All_Groups' : groupFilter.replace(/\s+/g, '_');
-    const fileName = `Issue_List_${groupLabel}_${currentPeriodLabel}_${today}.xlsx`;
+    const fileName = `Issues_Report_${groupLabel}_${currentPeriodLabel}_${today}.xlsx`;
 
     XLSX.writeFile(workbook, fileName);
   };
