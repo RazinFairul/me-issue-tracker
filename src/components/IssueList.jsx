@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 
 export default function IssueList({ onBackToDashboard, refreshTrigger }) {
@@ -369,74 +370,74 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // Export to Excel (CSV UTF-8)
+  // Export to Native Excel (.xlsx) using SheetJS
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('No issue data available to export with the current filters.');
       return;
     }
 
-    const headers = [
-      'Issue ID',
-      'Date & Time',
-      'Classification',
-      'Issue Title',
-      'Description',
-      'Group',
-      'Reported By',
-      'Location / Station',
-      'PIC',
-      'Est. Closing Date',
-      'Status',
-      'Progress Notes',
-      'File Attachment URL',
-      'External Attachment Link'
-    ];
-
-    const escapeCsv = (str) => {
-      if (str === null || str === undefined) return '""';
-      const text = String(str).replace(/"/g, '""');
-      return `"${text}"`;
-    };
-
-    const rows = filteredIssues.map((i) => {
+    const formattedData = filteredIssues.map((i, index) => {
       const exportStatus = (!i.status || i.status === 'Open') ? 'In Progress (1/4)' : i.status;
-      return [
-        escapeCsv(i.id),
-        escapeCsv(i.date_time || i.created_at || ''),
-        escapeCsv(i.classification || ''),
-        escapeCsv(i.what_issue || ''),
-        escapeCsv(i.description || ''),
-        escapeCsv(i.group_name || ''),
-        escapeCsv(i.staff_name || i.staff_id || ''),
-        escapeCsv(i.location || ''),
-        escapeCsv(i.pic_name || i.pic || ''),
-        escapeCsv(i.estimated_closing ? i.estimated_closing.split('T')[0] : ''),
-        escapeCsv(exportStatus),
-        escapeCsv(i.progress_note || ''),
-        escapeCsv(i.file_url || ''),
-        escapeCsv(i.onedrive_link || '')
-      ];
+      
+      // Clean dates to UK format DD/MM/YYYY
+      const rawDate = i.date_time || i.created_at;
+      const formattedDate = rawDate ? formatDateTime(rawDate) : '-';
+      const formattedEstClosing = i.estimated_closing ? formatDateOnly(i.estimated_closing) : '-';
+
+      // Flatten progress notes to avoid distorted tall rows
+      const cleanProgressNote = i.progress_note 
+        ? i.progress_note.replace(/(\r\n|\n|\r)/gm, ' ').trim() 
+        : '-';
+
+      return {
+        'No.': index + 1,
+        'Issue ID': i.id ? i.id.substring(0, 8).toUpperCase() : '-',
+        'Date & Time': formattedDate,
+        'Classification': i.classification || '-',
+        'Issue Title': i.what_issue || '-',
+        'Description': i.description || '-',
+        'Group': i.group_name || '-',
+        'Reported By': i.staff_name || i.staff_id || '-',
+        'Location / Station': i.location || '-',
+        'PIC': i.pic_name || i.pic || '-',
+        'Est. Closing Date': formattedEstClosing,
+        'Status': exportStatus,
+        'Progress Notes': cleanProgressNote,
+        'File Attachment URL': i.file_url || '-',
+        'External Attachment Link': i.onedrive_link || '-'
+      };
     });
 
-    const csvContent = '\uFEFF' + [
-      headers.join(','),
-      ...rows.map((row) => row.join(','))
-    ].join('\r\n');
+    const worksheet = XLSX.utils.json_to_sheet(formattedData);
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    
+    // Set professional column widths
+    worksheet['!cols'] = [
+      { wch: 6 },   // No.
+      { wch: 12 },  // Issue ID
+      { wch: 22 },  // Date & Time
+      { wch: 14 },  // Classification
+      { wch: 28 },  // Issue Title
+      { wch: 35 },  // Description
+      { wch: 20 },  // Group
+      { wch: 22 },  // Reported By
+      { wch: 20 },  // Location / Station
+      { wch: 18 },  // PIC
+      { wch: 18 },  // Est. Closing Date
+      { wch: 20 },  // Status
+      { wch: 40 },  // Progress Notes
+      { wch: 45 },  // File Attachment URL
+      { wch: 45 }   // External Attachment Link
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Issues Data');
+
     const today = new Date().toISOString().slice(0, 10);
     const groupLabel = groupFilter === 'All' ? 'All_Groups' : groupFilter.replace(/\s+/g, '_');
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Issues_${groupLabel}_${currentPeriodLabel}_${today}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const fileName = `Issues_${groupLabel}_${currentPeriodLabel}_${today}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
   };
 
   return (
@@ -826,7 +827,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </a>
                     )}
 
-                    {/* External Attachment Link Button - Outline / Putih */}
+                    {/* External Attachment Link Button */}
                     {issue.onedrive_link && (
                       <a
                         href={issue.onedrive_link}
