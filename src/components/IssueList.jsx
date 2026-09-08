@@ -38,7 +38,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   const fetchIssues = async () => {
     setLoading(true);
-    // Sort directly by issue occurrence date descending (latest date first)
     const { data, error } = await supabase
       .from('issues')
       .select('*')
@@ -115,14 +114,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return Array.from(new Set(issues.map((i) => i.pic_name || i.pic).filter(Boolean))).sort();
   }, [issues]);
 
-  // Delete issue and automatically purge image storage bucket cleanly
   const handleDeleteIssue = async (issue) => {
     const confirmDelete = window.confirm(`Are you sure you want to delete "${issue.what_issue || 'this issue'}"?`);
     if (!confirmDelete) return;
 
     setIssues((prevIssues) => prevIssues.filter((item) => item.id !== issue.id));
 
-    // 1. Remove image/file from Supabase Storage bucket if exists
     if (issue.file_url) {
       try {
         const marker = '/issue-attachments/';
@@ -143,7 +140,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       }
     }
 
-    // 2. Delete database record
     const { error } = await supabase.from('issues').delete().eq('id', issue.id);
 
     if (error) {
@@ -221,7 +217,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return dateStr;
   };
 
-  // Urutan warna: Jingga (1/4) -> Kuning (2/4) -> Biru (3/4) -> Hijau (4/4)
   const getStatusDetails = (status) => {
     switch (status) {
       case 'In Progress (1/4)':
@@ -266,7 +261,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setUpdating(false);
   };
 
-  // Filter & Sorting Logic (Chronological: latest issue dates first)
+  // Filter & Sorting Logic
   const filteredIssues = issues
     .filter((issue) => {
       const searchLower = searchTerm.toLowerCase();
@@ -286,7 +281,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       const issueDateOnly = issueDateRaw ? issueDateRaw.split('T')[0].split(' ')[0] : '';
       const estDateOnly = estClosingRaw ? estClosingRaw.split('T')[0].split(' ')[0] : '';
 
-      // Period Logic
       let matchesPeriod = true;
       if (periodFilter !== 'All') {
         if (periodFilter.includes('-W')) {
@@ -299,7 +293,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         }
       }
 
-      // Status Logic
       let matchesStatus = true;
       if (statusFilter !== 'All') {
         if (statusFilter === 'Closed') {
@@ -370,72 +363,85 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // Export to Native Excel (.xlsx) using SheetJS
+  // Export to Native Excel (.xlsx) mengikut susunan lajur laporan kilang
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('No issue data available to export with the current filters.');
       return;
     }
 
+    const getHarveyBall = (status) => {
+      switch (status) {
+        case 'In Progress (1/4)': return '◔ 1/4';
+        case 'In Progress (2/4)': return '◑ 2/4';
+        case 'In Progress (3/4)': return '◕ 3/4';
+        case 'Closed':
+        case 'Completed':
+        case 'Complete': return '● 4/4';
+        default: return '◔ 1/4';
+      }
+    };
+
     const formattedData = filteredIssues.map((i, index) => {
-      const exportStatus = (!i.status || i.status === 'Open') ? 'In Progress (1/4)' : i.status;
+      const exportStatus = (!i.status || i.status === 'Open') 
+        ? 'In Progress (1/4)' 
+        : i.status;
       
-      // Clean dates to UK format DD/MM/YYYY
       const rawDate = i.date_time || i.created_at;
       const formattedDate = rawDate ? formatDateTime(rawDate) : '-';
       const formattedEstClosing = i.estimated_closing ? formatDateOnly(i.estimated_closing) : '-';
 
-      // Flatten progress notes to avoid distorted tall rows
+      const fullDescription = i.what_issue 
+        ? `[${i.what_issue}] ${i.description ? '- ' + i.description : ''}`
+        : (i.description || '-');
+
       const cleanProgressNote = i.progress_note 
         ? i.progress_note.replace(/(\r\n|\n|\r)/gm, ' ').trim() 
         : '-';
 
       return {
         'No.': index + 1,
-        'Issue ID': i.id ? i.id.substring(0, 8).toUpperCase() : '-',
-        'Date & Time': formattedDate,
-        'Classification': i.classification || '-',
-        'Issue Title': i.what_issue || '-',
-        'Description': i.description || '-',
-        'Group': i.group_name || '-',
+        'Project / Group': i.group_name || '-',
         'Reported By': i.staff_name || i.staff_id || '-',
-        'Location / Station': i.location || '-',
-        'PIC': i.pic_name || i.pic || '-',
-        'Est. Closing Date': formattedEstClosing,
-        'Status': exportStatus,
-        'Progress Notes': cleanProgressNote,
-        'File Attachment URL': i.file_url || '-',
-        'External Attachment Link': i.onedrive_link || '-'
+        'Opening Date & Time': formattedDate,
+        'Issue Class': i.classification || '-',
+        'Closing Status': getHarveyBall(exportStatus),
+        'Location / Op No.': i.location || '-',
+        'Issue Description': fullDescription,
+        'Responsible Person (PIC)': i.pic_name || i.pic || '-',
+        'Progress Updates': cleanProgressNote,
+        'Estimated Closing': formattedEstClosing,
+        'Status': exportStatus.includes('Closed') ? 'Closed' : 'Open',
+        'Attachment URL': i.file_url || '-',
+        'External Link': i.onedrive_link || '-'
       };
     });
 
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
 
-    // Set professional column widths
     worksheet['!cols'] = [
       { wch: 6 },   // No.
-      { wch: 12 },  // Issue ID
-      { wch: 22 },  // Date & Time
-      { wch: 14 },  // Classification
-      { wch: 28 },  // Issue Title
-      { wch: 35 },  // Description
-      { wch: 20 },  // Group
-      { wch: 22 },  // Reported By
-      { wch: 20 },  // Location / Station
-      { wch: 18 },  // PIC
-      { wch: 18 },  // Est. Closing Date
-      { wch: 20 },  // Status
-      { wch: 40 },  // Progress Notes
-      { wch: 45 },  // File Attachment URL
-      { wch: 45 }   // External Attachment Link
+      { wch: 18 },  // Project / Group
+      { wch: 20 },  // Reported By
+      { wch: 22 },  // Opening Date & Time
+      { wch: 12 },  // Issue Class
+      { wch: 16 },  // Closing Status
+      { wch: 18 },  // Location / Op No.
+      { wch: 42 },  // Issue Description
+      { wch: 22 },  // Responsible Person (PIC)
+      { wch: 42 },  // Progress Updates
+      { wch: 16 },  // Estimated Closing
+      { wch: 12 },  // Status
+      { wch: 40 },  // Attachment URL
+      { wch: 40 }   // External Link
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Issues Data');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Open Issue List');
 
     const today = new Date().toISOString().slice(0, 10);
     const groupLabel = groupFilter === 'All' ? 'All_Groups' : groupFilter.replace(/\s+/g, '_');
-    const fileName = `Issues_${groupLabel}_${currentPeriodLabel}_${today}.xlsx`;
+    const fileName = `Issue_List_${groupLabel}_${currentPeriodLabel}_${today}.xlsx`;
 
     XLSX.writeFile(workbook, fileName);
   };
@@ -815,7 +821,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   </span>
 
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {/* Direct Image/Attachment View */}
                     {issue.file_url && (
                       <a
                         href={issue.file_url}
@@ -827,7 +832,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </a>
                     )}
 
-                    {/* External Attachment Link Button */}
                     {issue.onedrive_link && (
                       <a
                         href={issue.onedrive_link}
