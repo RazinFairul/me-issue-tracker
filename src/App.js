@@ -9,7 +9,7 @@ import TagMapUpdates from './components/TagMap';
 import DashboardAnalytics from './components/DashboardAnalytics';
 import EditProfileModal from './components/EditProfileModal';
 
-const TIMEOUT_DURATION_MS = 5 * 60 * 1000; // 5 minit (300,000 ms)
+const TIMEOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes (300,000 ms)
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -20,7 +20,7 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('home');
 
-  // Kesan jika pengguna datang dari pautan 'Reset Password' di emel
+  // Detect password recovery mode from email reset links
   const [isRecoveryMode, setIsRecoveryMode] = useState(
     window.location.hash.includes('type=recovery') || window.location.href.includes('type=recovery')
   );
@@ -36,42 +36,47 @@ export default function App() {
     setSession(null);
   }, []);
 
-  // Logik Auto-Logout 5 Minit Jika Pengguna Tidak Aktif
+  // Strict 5-Minute Inactivity Auto-Logout (Silent)
   useEffect(() => {
     if (!session) return;
 
-    const updateActiveTime = () => {
+    let timeoutId;
+
+    const triggerTimeout = () => {
+      handleLogout();
+    };
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
       localStorage.setItem('me_last_active_time', String(Date.now()));
+      timeoutId = setTimeout(triggerTimeout, TIMEOUT_DURATION_MS);
     };
 
-    const checkInactivity = () => {
-      const lastActive = localStorage.getItem('me_last_active_time');
-      const now = Date.now();
+    // 1. Check if the tab was left inactive for > 5 minutes previously
+    const lastActive = localStorage.getItem('me_last_active_time');
+    if (lastActive && Date.now() - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS) {
+      triggerTimeout();
+      return;
+    }
 
-      if (lastActive && now - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS) {
-        alert('Sesi anda telah tamat tempoh kerana tidak aktif melebihi 5 minit. Sila log masuk semula.');
-        handleLogout();
-      }
-    };
+    // 2. Start initial timer
+    resetTimer();
 
-    // Semak setiap 10 saat jika sudah terbiar melebihi 5 minit
-    const intervalId = setInterval(checkInactivity, 10000);
-
-    window.addEventListener('mousemove', updateActiveTime);
-    window.addEventListener('keydown', updateActiveTime);
-    window.addEventListener('click', updateActiveTime);
-    window.addEventListener('beforeunload', updateActiveTime);
+    // 3. Track intentional user activity (excluding mousemove to prevent false resets)
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach((event) => {
+      window.addEventListener(event, resetTimer);
+    });
 
     return () => {
-      clearInterval(intervalId);
-      window.removeEventListener('mousemove', updateActiveTime);
-      window.removeEventListener('keydown', updateActiveTime);
-      window.removeEventListener('click', updateActiveTime);
-      window.removeEventListener('beforeunload', updateActiveTime);
+      if (timeoutId) clearTimeout(timeoutId);
+      events.forEach((event) => {
+        window.removeEventListener(event, resetTimer);
+      });
     };
   }, [session, handleLogout]);
 
-  // Pengendali Navigasi URL Hash
+  // URL Hash Navigation Handler
   useEffect(() => {
     const handleHashChange = () => {
       if (isRecoveryMode) return;
@@ -158,7 +163,7 @@ export default function App() {
     }
   };
 
-  // Inisialisasi Sesi Supabase & Listener
+  // Supabase Auth Initialization & Realtime Listener
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (window.location.hash.includes('type=recovery')) {
@@ -169,7 +174,6 @@ export default function App() {
 
       if (session) {
         const lastActive = localStorage.getItem('me_last_active_time');
-        // Hanya semak tamat tempoh jika sesi memang wujud sebelum ini
         if (lastActive && Date.now() - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS) {
           handleLogout();
           setLoading(false);
@@ -194,7 +198,6 @@ export default function App() {
       }
 
       if (event === 'SIGNED_IN' || (session && !isRecoveryMode)) {
-        // Tetapkan cap masa semasa sebaik sahaja log masuk berjaya
         localStorage.setItem('me_last_active_time', String(Date.now()));
         setSession(session);
         fetchProfile(session.user);
@@ -221,16 +224,16 @@ export default function App() {
     navigateTo('list');
   };
 
-  // Paparan pemuatan sesi awal
+  // Initial Session Loading State
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f4f6f9' }}>
-        <p style={{ fontWeight: 'bold', color: '#0d3b66' }}>Memuatkan sesi...</p>
+        <p style={{ fontWeight: 'bold', color: '#0d3b66' }}>Loading session...</p>
       </div>
     );
   }
 
-  // 1. RECOVERY MODE
+  // 1. PASSWORD RECOVERY MODE
   if (isRecoveryMode) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#f4f6f9', padding: '40px 20px' }}>
@@ -245,7 +248,7 @@ export default function App() {
     );
   }
 
-  // 2. BELUM LOGIN
+  // 2. UNAUTHENTICATED STATE
   if (!session) {
     if (showAuthModal) {
       return (
@@ -275,7 +278,7 @@ export default function App() {
     return <LandingPage onGoToLogin={openLogin} />;
   }
 
-  // 3. SUDAH LOGIN
+  // 3. AUTHENTICATED DASHBOARD
   const displayName = 
     userProfile?.full_name || 
     session.user?.user_metadata?.full_name || 
