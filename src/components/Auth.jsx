@@ -35,7 +35,7 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
     resetNotices();
 
     try {
-      // 1. Mod Set New Password (Selepas klik link emel)
+      // 1. Mod Set New Password (Selepas klik pautan di e-mel)
       if (authMode === 'update_password') {
         if (password.length < 6) {
           throw new Error('Password must be at least 6 characters long.');
@@ -51,7 +51,7 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
         if (error) throw error;
 
         setSuccessMessage('Password successfully changed! Please log in with your new password.');
-        
+
         setTimeout(() => {
           if (onPasswordResetComplete) {
             onPasswordResetComplete();
@@ -64,7 +64,7 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
         return;
       }
 
-      // 2. Mod Forgot Password (Hantar pautan emel)
+      // 2. Mod Forgot Password (Hantar pautan e-mel)
       if (authMode === 'forgot') {
         const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
           redirectTo: `${window.location.origin}/`,
@@ -106,8 +106,11 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
           setStaffId('');
           setDepartmentCode('');
         }
-      } else {
-        // 4. Mod Login
+        return;
+      }
+
+      // 4. Mod Login
+      if (authMode === 'login') {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password: password,
@@ -115,16 +118,18 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
 
         if (error) throw error;
 
-        // Gantikan sejarah hash pelayar terus ke '#/home' tanpa meninggalkan kesan '#login'
-        window.history.replaceState(null, '', '#/home');
-
-        if (onLoginSuccess && data?.user) {
-          onLoginSuccess(data.user);
+        if (data?.user) {
+          if (onLoginSuccess) {
+            onLoginSuccess(data.user);
+          }
         }
       }
     } catch (err) {
       console.error('Authentication Error Details:', err);
-      const displayMsg = err.error_description || err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      const displayMsg =
+        err.error_description ||
+        err.message ||
+        (typeof err === 'object' ? JSON.stringify(err) : String(err));
       setErrorMessage(displayMsg);
     } finally {
       setLoading(false);
@@ -132,15 +137,17 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
   };
 
   return (
-    <div style={{
-      maxWidth: '400px',
-      margin: '50px auto',
-      padding: '24px',
-      backgroundColor: '#ffffff',
-      borderRadius: '8px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-      fontFamily: 'Arial, sans-serif'
-    }}>
+    <div
+      style={{
+        maxWidth: '400px',
+        margin: '50px auto',
+        padding: '24px',
+        backgroundColor: '#ffffff',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        fontFamily: 'Arial, sans-serif',
+      }}
+    >
       <h2 style={{ textAlign: 'center', color: '#0d3b66', marginBottom: '20px' }}>
         {authMode === 'signup' && 'Staff Registration'}
         {authMode === 'login' && 'Staff Login'}
@@ -149,19 +156,38 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
       </h2>
 
       {errorMessage && (
-        <div style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#dc2626', borderRadius: '4px', marginBottom: '15px', fontSize: '13px', wordBreak: 'break-word' }}>
+        <div
+          style={{
+            padding: '10px',
+            backgroundColor: '#fee2e2',
+            color: '#dc2626',
+            borderRadius: '4px',
+            marginBottom: '15px',
+            fontSize: '13px',
+            wordBreak: 'break-word',
+          }}
+        >
           {errorMessage}
         </div>
       )}
 
       {successMessage && (
-        <div style={{ padding: '10px', backgroundColor: '#dcfce7', color: '#16a34a', borderRadius: '4px', marginBottom: '15px', fontSize: '13px' }}>
+        <div
+          style={{
+            padding: '10px',
+            backgroundColor: '#dcfce7',
+            color: '#16a34a',
+            borderRadius: '4px',
+            marginBottom: '15px',
+            fontSize: '13px',
+          }}
+        >
           {successMessage}
         </div>
       )}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        {/* Email input hanya jika bukan mod update_password */}
+        {/* Input e-mel dipaparkan melainkan dalam mod update_password */}
         {authMode !== 'update_password' && (
           <div>
             <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '4px' }}>
@@ -211,7 +237,7 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
           </>
         )}
 
-        {/* Password input */}
+        {/* Input Password */}
         {authMode !== 'forgot' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -221,8 +247,19 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
               {authMode === 'login' && (
                 <button
                   type="button"
-                  onClick={() => { setAuthMode('forgot'); resetNotices(); }}
-                  style={{ background: 'none', border: 'none', color: '#0d3b66', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                  onClick={() => {
+                    setAuthMode('forgot');
+                    resetNotices();
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#0d3b66',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0,
+                  }}
                 >
                   Forgot Password?
                 </button>
@@ -232,7 +269,11 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
-                placeholder={authMode === 'update_password' ? 'Enter new password (min 6 characters)' : 'Enter your Password (min 6 characters)'}
+                placeholder={
+                  authMode === 'update_password'
+                    ? 'Enter new password (min 6 characters)'
+                    : 'Enter your Password (min 6 characters)'
+                }
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 style={{
@@ -242,7 +283,7 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
                   border: '1px solid #ccc',
                   boxSizing: 'border-box',
                   outline: 'none',
-                  fontSize: '13px'
+                  fontSize: '13px',
                 }}
               />
               <button
@@ -259,7 +300,7 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
                   alignItems: 'center',
                   justifyContent: 'center',
                   padding: '4px',
-                  color: '#64748b'
+                  color: '#64748b',
                 }}
               >
                 {showPassword ? (
@@ -290,7 +331,14 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
               placeholder="Confirm new password"
               value={confirmNewPassword}
               onChange={(e) => setConfirmNewPassword(e.target.value)}
-              style={{ width: '100%', padding: '9px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '13px' }}
+              style={{
+                width: '100%',
+                padding: '9px',
+                borderRadius: '5px',
+                border: '1px solid #ccc',
+                boxSizing: 'border-box',
+                fontSize: '13px',
+              }}
             />
           </div>
         )}
@@ -324,17 +372,22 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
             padding: '11px',
             border: 'none',
             borderRadius: '5px',
-            cursor: 'pointer',
+            cursor: loading ? 'not-allowed' : 'pointer',
             fontWeight: 'bold',
             fontSize: '14px',
-            marginTop: '8px'
+            marginTop: '8px',
+            opacity: loading ? 0.7 : 1,
           }}
         >
-          {loading ? 'Processing...' : (
-            authMode === 'signup' ? 'Register' :
-            authMode === 'forgot' ? 'Send Reset Link' : 
-            authMode === 'update_password' ? 'Save New Password' : 'Log In'
-          )}
+          {loading
+            ? 'Processing...'
+            : authMode === 'signup'
+            ? 'Register'
+            : authMode === 'forgot'
+            ? 'Send Reset Link'
+            : authMode === 'update_password'
+            ? 'Save New Password'
+            : 'Log In'}
         </button>
       </form>
 
@@ -343,8 +396,18 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
         {authMode === 'update_password' ? null : authMode === 'forgot' ? (
           <button
             type="button"
-            onClick={() => { setAuthMode('login'); resetNotices(); }}
-            style={{ background: 'none', border: 'none', color: '#0d3b66', cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}
+            onClick={() => {
+              setAuthMode('login');
+              resetNotices();
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#0d3b66',
+              cursor: 'pointer',
+              fontSize: '13px',
+              textDecoration: 'underline',
+            }}
           >
             ← Back to Log In
           </button>
@@ -356,7 +419,14 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
               setShowPassword(false);
               resetNotices();
             }}
-            style={{ background: 'none', border: 'none', color: '#0d3b66', cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#0d3b66',
+              cursor: 'pointer',
+              fontSize: '13px',
+              textDecoration: 'underline',
+            }}
           >
             {authMode === 'signup' ? 'Already have an account? Log In' : "Don't have an account? Sign Up"}
           </button>

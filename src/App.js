@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import './App.css';
 import { supabase } from './supabaseClient';
 import LandingPage from './components/LandingPage';
@@ -13,6 +13,7 @@ const TIMEOUT_DURATION_MS = 5 * 60 * 1000; // 5 minit (300,000 ms)
 
 export default function App() {
   const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -24,7 +25,7 @@ export default function App() {
     window.location.hash.includes('type=recovery') || window.location.href.includes('type=recovery')
   );
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     localStorage.removeItem('me_last_active_time');
     await supabase.auth.signOut();
     window.location.hash = '';
@@ -33,39 +34,33 @@ export default function App() {
     setIsRecoveryMode(false);
     setUserProfile(null);
     setSession(null);
-  };
+  }, []);
 
-  // Logik Auto-Logout 5 Minit Jika Keluar Website
+  // Logik Auto-Logout 5 Minit Jika Pengguna Tidak Aktif
   useEffect(() => {
     if (!session) return;
 
-    // 1. Semak sama ada sudah terbiar melebihi 5 minit sejak kali terakhir keluar
-    const lastActive = localStorage.getItem('me_last_active_time');
-    const now = Date.now();
-
-    if (lastActive) {
-      const timeDiff = now - parseInt(lastActive, 10);
-      if (timeDiff > TIMEOUT_DURATION_MS) {
-        alert('Sesi anda telah tamat tempoh kerana tidak aktif melebihi 5 minit. Sila log masuk semula.');
-        handleLogout();
-        return;
-      }
-    }
-
-    // Kemas kini waktu aktif sekarang
-    localStorage.setItem('me_last_active_time', String(now));
-
-    // 2. Kemas kini timestamp setiap kali pengguna berinteraksi atau selagi tab masih aktif
     const updateActiveTime = () => {
       localStorage.setItem('me_last_active_time', String(Date.now()));
     };
 
-    const intervalId = setInterval(updateActiveTime, 10000); // refresh timestamp setiap 10 saat jika tab terbuka
+    const checkInactivity = () => {
+      const lastActive = localStorage.getItem('me_last_active_time');
+      const now = Date.now();
+
+      if (lastActive && now - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS) {
+        alert('Sesi anda telah tamat tempoh kerana tidak aktif melebihi 5 minit. Sila log masuk semula.');
+        handleLogout();
+      }
+    };
+
+    // Semak setiap 10 saat jika sudah terbiar melebihi 5 minit
+    const intervalId = setInterval(checkInactivity, 10000);
 
     window.addEventListener('mousemove', updateActiveTime);
     window.addEventListener('keydown', updateActiveTime);
     window.addEventListener('click', updateActiveTime);
-    window.addEventListener('beforeunload', updateActiveTime); // simpan waktu tepat semasa tab ditutup/keluar
+    window.addEventListener('beforeunload', updateActiveTime);
 
     return () => {
       clearInterval(intervalId);
@@ -74,14 +69,15 @@ export default function App() {
       window.removeEventListener('click', updateActiveTime);
       window.removeEventListener('beforeunload', updateActiveTime);
     };
-  }, [session]);
+  }, [session, handleLogout]);
 
+  // Pengendali Navigasi URL Hash
   useEffect(() => {
     const handleHashChange = () => {
       if (isRecoveryMode) return;
 
       const currentHash = window.location.hash.replace('#/', '').replace('#', '');
-      
+
       if (!session) {
         if (currentHash === 'login') {
           setShowAuthModal(true);
@@ -91,7 +87,6 @@ export default function App() {
         return;
       }
 
-      // Jika sudah login dan user tekan back sampai ke root/login, kekalkan di home
       if (!currentHash || currentHash === '' || currentHash === 'login') {
         window.history.replaceState(null, '', '#/home');
         setActiveTab('home');
@@ -163,18 +158,21 @@ export default function App() {
     }
   };
 
+  // Inisialisasi Sesi Supabase & Listener
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (window.location.hash.includes('type=recovery')) {
         setIsRecoveryMode(true);
+        setLoading(false);
         return;
       }
 
       if (session) {
-        // Semak auto logout 5 minit sebelum membenarkan sesi diteruskan
         const lastActive = localStorage.getItem('me_last_active_time');
-        if (lastActive && (Date.now() - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS)) {
+        // Hanya semak tamat tempoh jika sesi memang wujud sebelum ini
+        if (lastActive && Date.now() - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS) {
           handleLogout();
+          setLoading(false);
           return;
         }
 
@@ -186,6 +184,7 @@ export default function App() {
           setActiveTab('home');
         }
       }
+      setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -194,16 +193,13 @@ export default function App() {
         return;
       }
 
-      if (session && !isRecoveryMode) {
-        // Semak tempoh tamat jika token disegarkan
-        const lastActive = localStorage.getItem('me_last_active_time');
-        if (lastActive && (Date.now() - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS)) {
-          handleLogout();
-          return;
-        }
-
+      if (event === 'SIGNED_IN' || (session && !isRecoveryMode)) {
+        // Tetapkan cap masa semasa sebaik sahaja log masuk berjaya
+        localStorage.setItem('me_last_active_time', String(Date.now()));
         setSession(session);
         fetchProfile(session.user);
+        setShowAuthModal(false);
+
         const currentHash = window.location.hash.replace('#/', '').replace('#', '');
         if (!currentHash || currentHash === 'login') {
           window.history.replaceState(null, '', '#/home');
@@ -211,17 +207,28 @@ export default function App() {
         }
       } else if (!session) {
         setUserProfile(null);
+        setSession(null);
         window.location.hash = '';
       }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [isRecoveryMode]);
+  }, [isRecoveryMode, handleLogout]);
 
   const handleIssueCreated = () => {
     setRefreshTrigger((prev) => prev + 1);
     navigateTo('list');
   };
+
+  // Paparan pemuatan sesi awal
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f4f6f9' }}>
+        <p style={{ fontWeight: 'bold', color: '#0d3b66' }}>Memuatkan sesi...</p>
+      </div>
+    );
+  }
 
   // 1. RECOVERY MODE
   if (isRecoveryMode) {
