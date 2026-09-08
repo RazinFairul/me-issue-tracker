@@ -370,6 +370,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       return;
     }
 
+    // Bulatan bersaiz sama besar mengikut keluarga Harvey Ball
     const getHarveyBall = (status) => {
       switch (status) {
         case 'In Progress (1/4)': return '◔ 1/4';
@@ -377,7 +378,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         case 'In Progress (3/4)': return '◕ 3/4';
         case 'Closed':
         case 'Completed':
-        case 'Complete': return '● 4/4';
+        case 'Complete': return '⬤ 4/4';
         default: return '◔ 1/4';
       }
     };
