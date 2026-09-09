@@ -51,12 +51,12 @@ serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Ambil semua isu yang mempunyai e-mel PIC dan anggaran tarikh tutup
     const { data: issues, error: fetchError } = await supabase
       .from("issues")
       .select("*")
-      .neq("status", "Completed")
-      .neq("status", "Closed")
-      .not("pic_email", "is", null);
+      .not("pic_email", "is", null)
+      .not("estimated_closing", "is", null);
 
     if (fetchError) throw fetchError;
 
@@ -76,6 +76,16 @@ serve(async (req: Request) => {
 
     for (const issue of issues || []) {
       if (!issue.estimated_closing || !issue.pic_email) continue;
+
+      // Tapisan kebal: Abaikan jika status adalah Closed, Completed, atau Complete (tidak peka huruf besar/kecil)
+      const currentStatus = String(issue.status || "").trim().toLowerCase();
+      if (
+        currentStatus === "closed" ||
+        currentStatus === "completed" ||
+        currentStatus === "complete"
+      ) {
+        continue;
+      }
 
       const closingDateStr = parseToStandardDate(issue.estimated_closing);
       if (!closingDateStr) continue;
@@ -143,7 +153,7 @@ serve(async (req: Request) => {
             `<tr><td style="padding: 10px; font-weight: bold; background-color: #fee2e2; color: #991b1b; border: 1px solid #e2e8f0;">Target Due Date:</td><td style="padding: 10px; background-color: #fee2e2; color: #991b1b; font-weight: bold; border: 1px solid #e2e8f0;">${closingDateStr}</td></tr>` +
           '</table>' +
           '<p style="font-size: 14px; line-height: 1.5; margin-bottom: 20px;">' +
-            'Please update the issue status to <strong>Completed</strong> in the ME Data Tracker system once the issue has been resolved.' +
+            'Please update the issue status to <strong>Closed</strong> in the ME Data Tracker system once the issue has been resolved.' +
           '</p>' +
           '<div style="text-align: center; margin: 25px 0;">' +
             `<a href="${APP_URL}" target="_blank" style="background-color: ${btnColor}; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">Open ME Issue Tracker ↗</a>` +
