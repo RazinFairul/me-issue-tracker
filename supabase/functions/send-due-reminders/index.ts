@@ -43,6 +43,8 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const gmailUser = Deno.env.get("GMAIL_USER") ?? "";
     const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
+    // Boleh guna secret BOSS_EMAIL atau fallback ke e-mel tetap
+    const bossEmail = Deno.env.get("BOSS_EMAIL") || "razinfairul@gmail.com";
 
     if (!gmailUser || !gmailAppPassword) {
       throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD is not set in Supabase Secrets.");
@@ -54,6 +56,7 @@ serve(async (req: Request) => {
       .from("issues")
       .select("*")
       .neq("status", "Completed")
+      .neq("status", "Closed")
       .not("pic_email", "is", null);
 
     if (fetchError) throw fetchError;
@@ -149,9 +152,11 @@ serve(async (req: Request) => {
           '<p style="font-size: 11px; color: #94a3b8; text-align: center; margin-bottom: 0;">Manufacturing Engineering - Data Tracker System</p>' +
         '</div>';
 
+        // Hantar e-mel dengan menyertakan cc kepada e-mel bos
         await client.send({
           from: `ME Issue Tracker <${gmailUser}>`,
           to: issue.pic_email,
+          cc: bossEmail ? [bossEmail] : undefined,
           subject: subject,
           html: htmlContent,
         });
@@ -159,6 +164,7 @@ serve(async (req: Request) => {
         sentResults.push({
           issue_id: issue.id,
           recipient: issue.pic_email,
+          cc: bossEmail,
           condition: tagLabel,
           target_date: closingDateStr,
         });
