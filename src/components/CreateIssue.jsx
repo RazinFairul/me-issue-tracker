@@ -37,7 +37,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       try {
         let query = supabase.from('stations').select('station_code, group_name');
 
-        // If not IT, filter by group; IT gets full access to all stations
         if (groupName !== 'IT') {
           query = query.eq('group_name', groupName);
         }
@@ -104,7 +103,12 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   // Delete station from Supabase
   const handleDeleteSelectedStation = async () => {
     if (!location) {
-      alert('Please select a station to delete.');
+      alert('Please select or type a valid station to delete.');
+      return;
+    }
+
+    if (!stationList.includes(location)) {
+      alert(`Station "${location}" does not exist in the database.`);
       return;
     }
 
@@ -319,7 +323,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Location / Station with Dynamic Add & Delete */}
+        {/* Location / Station with Type-to-Search (Datalist) */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Location / Station:</label>
@@ -337,7 +341,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                   textDecoration: 'underline'
                 }}
               >
-                {isAddingStation ? '← Back to list' : '+ Add New Station'}
+                {isAddingStation ? '← Back to search' : '+ Add New Station'}
               </button>
             )}
           </div>
@@ -376,11 +380,20 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             </div>
           ) : (
             <div style={{ display: 'flex', gap: '8px' }}>
-              <select
+              {/* Searchable input with HTML5 datalist */}
+              <input
+                list="station-options"
                 required
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 disabled={!groupName || stationLoading}
+                placeholder={
+                  !groupName
+                    ? 'Please select Group first'
+                    : stationLoading
+                    ? 'Loading stations...'
+                    : `Type or select station (${stationList.length} available)...`
+                }
                 style={{
                   flex: 1,
                   padding: '10px',
@@ -388,25 +401,18 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                   border: '1px solid #ccc',
                   boxSizing: 'border-box',
                   backgroundColor: !groupName ? '#f8fafc' : '#fff',
-                  cursor: 'pointer',
-                  color: location ? '#000' : '#888'
+                  color: '#000'
                 }}
-              >
-                <option value="" disabled hidden>
-                  {!groupName
-                    ? 'Please select Group first'
-                    : stationLoading
-                    ? 'Loading stations...'
-                    : `-- Select Station (${stationList.length} available) --`}
-                </option>
-                {stationList.map((stn) => (
-                  <option key={stn} value={stn} style={{ color: '#000' }}>
-                    {stn}
-                  </option>
-                ))}
-              </select>
+              />
 
-              {location && (
+              <datalist id="station-options">
+                {stationList.map((stn) => (
+                  <option key={stn} value={stn} />
+                ))}
+              </datalist>
+
+              {/* Show delete button if the typed station exists in database */}
+              {location && stationList.includes(location) && (
                 <button
                   type="button"
                   onClick={handleDeleteSelectedStation}
