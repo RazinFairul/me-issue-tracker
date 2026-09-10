@@ -68,7 +68,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     setIsAddingStation(false);
   };
 
-  // Add new station to Supabase
+  // Add new station to Supabase (Auto Uppercase)
   const handleAddNewStation = async () => {
     const trimmed = newStationCode.trim().toUpperCase();
     if (!trimmed) {
@@ -352,13 +352,14 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 type="text"
                 placeholder="Example: STN700M"
                 value={newStationCode}
-                onChange={(e) => setNewStationCode(e.target.value)}
+                onChange={(e) => setNewStationCode(e.target.value.toUpperCase())}
                 style={{
                   flex: 1,
                   padding: '10px',
                   borderRadius: '5px',
                   border: '1px solid #2563eb',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  textTransform: 'uppercase'
                 }}
               />
               <button
