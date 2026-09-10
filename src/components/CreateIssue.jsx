@@ -16,7 +16,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
 
-  // State untuk stesen dinamik dari pangkalan data Supabase
+  // Dynamic stations state from Supabase
   const [stationList, setStationList] = useState([]);
   const [isAddingStation, setIsAddingStation] = useState(false);
   const [newStationCode, setNewStationCode] = useState('');
@@ -24,7 +24,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
 
   const fileInputRef = useRef(null);
 
-  // Ambil senarai stesen dari table Supabase mengikut Group
+  // Fetch stations from Supabase table based on selected Group
   useEffect(() => {
     if (!groupName) {
       setStationList([]);
@@ -37,7 +37,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       try {
         let query = supabase.from('stations').select('station_code, group_name');
 
-        // Jika Group BUKAN IT, tapis mengikut group. Jika IT, tarik semua stesen tanpa tapisan.
+        // If not IT, filter by group; IT gets full access to all stations
         if (groupName !== 'IT') {
           query = query.eq('group_name', groupName);
         }
@@ -45,7 +45,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         const { data, error } = await query.order('station_code', { ascending: true });
 
         if (!error && data) {
-          // Ambil senarai unik bagi kod stesen
           const uniqueStations = Array.from(new Set(data.map((item) => item.station_code))).sort();
           setStationList(uniqueStations);
         } else {
@@ -62,7 +61,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     fetchStations();
   }, [groupName]);
 
-  // Fungsi apabila Group bertukar
+  // Handle group change
   const handleGroupChange = (e) => {
     const selectedGroup = e.target.value;
     setGroupName(selectedGroup);
@@ -70,16 +69,16 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     setIsAddingStation(false);
   };
 
-  // Fungsi Tambah Stesen Baharu ke Supabase
+  // Add new station to Supabase
   const handleAddNewStation = async () => {
     const trimmed = newStationCode.trim().toUpperCase();
     if (!trimmed) {
-      alert('Sila masukkan kod stesen.');
+      alert('Please enter a station code.');
       return;
     }
 
     if (stationList.includes(trimmed)) {
-      alert('Stesen ini sudah wujud dalam senarai.');
+      alert('This station already exists in the list.');
       return;
     }
 
@@ -91,7 +90,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     ]);
 
     if (error) {
-      alert('Gagal menambah stesen: ' + error.message);
+      alert('Failed to add station: ' + error.message);
     } else {
       const updated = [...stationList, trimmed].sort();
       setStationList(updated);
@@ -102,15 +101,15 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     setStationLoading(false);
   };
 
-  // Fungsi Padam Stesen daripada Supabase
+  // Delete station from Supabase
   const handleDeleteSelectedStation = async () => {
     if (!location) {
-      alert('Sila pilih stesen yang hendak dipadam.');
+      alert('Please select a station to delete.');
       return;
     }
 
     const confirmDelete = window.confirm(
-      `Adakah anda pasti mahu memadam stesen "${location}" daripada sistem?`
+      `Are you sure you want to delete station "${location}" from the system?`
     );
     if (!confirmDelete) return;
 
@@ -124,17 +123,17 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     const { error } = await query;
 
     if (error) {
-      alert('Gagal memadam stesen: ' + error.message);
+      alert('Failed to delete station: ' + error.message);
     } else {
       const updated = stationList.filter((s) => s !== location);
       setStationList(updated);
       setLocation('');
-      alert(`Stesen "${location}" telah dipadam.`);
+      alert(`Station "${location}" has been deleted successfully.`);
     }
     setStationLoading(false);
   };
 
-  // Batalkan / padam fail yang dipilih
+  // Remove selected file attachment
   const handleRemoveFile = () => {
     setFile(null);
     setCompressing(false);
@@ -320,7 +319,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Location / Station dengan Dynamic Add & Delete */}
+        {/* Location / Station with Dynamic Add & Delete */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Location / Station:</label>
@@ -338,7 +337,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                   textDecoration: 'underline'
                 }}
               >
-                {isAddingStation ? '← Kembali ke senarai' : '+ Tambah Stesen Baru'}
+                {isAddingStation ? '← Back to list' : '+ Add New Station'}
               </button>
             )}
           </div>
@@ -347,7 +346,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
-                placeholder="Contoh: STN700M"
+                placeholder="Example: STN700M"
                 value={newStationCode}
                 onChange={(e) => setNewStationCode(e.target.value)}
                 style={{
@@ -395,10 +394,10 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
               >
                 <option value="" disabled hidden>
                   {!groupName
-                    ? 'Sila pilih Group dahulu'
+                    ? 'Please select Group first'
                     : stationLoading
-                    ? 'Memuatkan senarai stesen...'
-                    : `-- Pilih Stesen (${stationList.length} stesen) --`}
+                    ? 'Loading stations...'
+                    : `-- Select Station (${stationList.length} available) --`}
                 </option>
                 {stationList.map((stn) => (
                   <option key={stn} value={stn} style={{ color: '#000' }}>
@@ -411,7 +410,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 <button
                   type="button"
                   onClick={handleDeleteSelectedStation}
-                  title="Padam stesen ini daripada senarai database"
+                  title="Delete this station from database"
                   disabled={stationLoading}
                   style={{
                     backgroundColor: '#fee2e2',
@@ -425,7 +424,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                     whiteSpace: 'nowrap'
                   }}
                 >
-                  🗑️ Padam
+                  🗑️ Delete
                 </button>
               )}
             </div>
@@ -494,7 +493,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           />
         </div>
 
-        {/* File Uploads dengan Butang Pangkah (Cancel) */}
+        {/* File Uploads with Cancel Button */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>File Uploads:</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
