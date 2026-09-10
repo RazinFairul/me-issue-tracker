@@ -1,7 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import imageCompression from 'browser-image-compression';
-import { GROUP_STATIONS } from '../data/stationData';
 
 export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [whatIssue, setWhatIssue] = useState('');
@@ -17,11 +16,123 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
 
-  // Senarai stesen berdasarkan Group yang dipilih
-  const availableStations = groupName && GROUP_STATIONS ? GROUP_STATIONS[groupName] || [] : [];
+  // State untuk stesen dinamik dari pangkalan data Supabase
+  const [stationList, setStationList] = useState([]);
+  const [isAddingStation, setIsAddingStation] = useState(false);
+  const [newStationCode, setNewStationCode] = useState('');
+  const [stationLoading, setStationLoading] = useState(false);
 
-  // Ref untuk mengosongkan pilihan fail pada input browser
   const fileInputRef = useRef(null);
+
+  // Ambil senarai stesen dari table Supabase mengikut Group
+  useEffect(() => {
+    if (!groupName) {
+      setStationList([]);
+      setLocation('');
+      return;
+    }
+
+    const fetchStations = async () => {
+      setStationLoading(true);
+      try {
+        let query = supabase.from('stations').select('station_code, group_name');
+
+        // Jika Group BUKAN IT, tapis mengikut group. Jika IT, tarik semua stesen tanpa tapisan.
+        if (groupName !== 'IT') {
+          query = query.eq('group_name', groupName);
+        }
+
+        const { data, error } = await query.order('station_code', { ascending: true });
+
+        if (!error && data) {
+          // Ambil senarai unik bagi kod stesen
+          const uniqueStations = Array.from(new Set(data.map((item) => item.station_code))).sort();
+          setStationList(uniqueStations);
+        } else {
+          setStationList([]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch stations:', err);
+        setStationList([]);
+      } finally {
+        setStationLoading(false);
+      }
+    };
+
+    fetchStations();
+  }, [groupName]);
+
+  // Fungsi apabila Group bertukar
+  const handleGroupChange = (e) => {
+    const selectedGroup = e.target.value;
+    setGroupName(selectedGroup);
+    setLocation('');
+    setIsAddingStation(false);
+  };
+
+  // Fungsi Tambah Stesen Baharu ke Supabase
+  const handleAddNewStation = async () => {
+    const trimmed = newStationCode.trim().toUpperCase();
+    if (!trimmed) {
+      alert('Sila masukkan kod stesen.');
+      return;
+    }
+
+    if (stationList.includes(trimmed)) {
+      alert('Stesen ini sudah wujud dalam senarai.');
+      return;
+    }
+
+    setStationLoading(true);
+    const targetGroup = groupName || 'Assembly Line';
+
+    const { error } = await supabase.from('stations').insert([
+      { group_name: targetGroup, station_code: trimmed }
+    ]);
+
+    if (error) {
+      alert('Gagal menambah stesen: ' + error.message);
+    } else {
+      const updated = [...stationList, trimmed].sort();
+      setStationList(updated);
+      setLocation(trimmed);
+      setNewStationCode('');
+      setIsAddingStation(false);
+    }
+    setStationLoading(false);
+  };
+
+  // Fungsi Padam Stesen daripada Supabase
+  const handleDeleteSelectedStation = async () => {
+    if (!location) {
+      alert('Sila pilih stesen yang hendak dipadam.');
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `Adakah anda pasti mahu memadam stesen "${location}" daripada sistem?`
+    );
+    if (!confirmDelete) return;
+
+    setStationLoading(true);
+    let query = supabase.from('stations').delete().eq('station_code', location);
+
+    if (groupName !== 'IT') {
+      query = query.eq('group_name', groupName);
+    }
+
+    const { error } = await query;
+
+    if (error) {
+      alert('Gagal memadam stesen: ' + error.message);
+    } else {
+      const updated = stationList.filter((s) => s !== location);
+      setStationList(updated);
+      setLocation('');
+      alert(`Stesen "${location}" telah dipadam.`);
+    }
+    setStationLoading(false);
+  };
 
   // Batalkan / padam fail yang dipilih
   const handleRemoveFile = () => {
@@ -32,13 +143,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     }
   };
 
-  // Fungsi apabila Group bertukar (kosongkan pilihan stesen lama)
-  const handleGroupChange = (e) => {
-    const selectedGroup = e.target.value;
-    setGroupName(selectedGroup);
-    setLocation('');
-  };
-
   // Handle file selection and automatic image compression
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
@@ -47,18 +151,16 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       return;
     }
 
-    // Compress image if uploaded file is an image
     if (selectedFile.type.startsWith('image/')) {
       const options = {
-        maxSizeMB: 0.5,           // Maximum size limit ~500 KB
-        maxWidthOrHeight: 1280,   // Max resolution 1280px (HD clarity for issue tracking)
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1280,
         useWebWorker: true,
       };
 
       try {
         setCompressing(true);
         const compressedBlob = await imageCompression(selectedFile, options);
-        // Convert blob back to File object to retain filename and properties
         const compressedFile = new File([compressedBlob], selectedFile.name, {
           type: selectedFile.type,
           lastModified: Date.now(),
@@ -71,7 +173,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         setCompressing(false);
       }
     } else {
-      // Keep PDF, video, or documents uncompressed
       setFile(selectedFile);
     }
   };
@@ -86,7 +187,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     setLoading(true);
 
     try {
-      // 1. Get current logged-in user
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
@@ -100,10 +200,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         'Staff';
 
       const staffEmail = user?.email || null;
-
       let fileUrl = null;
 
-      // 2. Upload file attachment if available
       if (file) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -124,7 +222,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         fileUrl = urlData.publicUrl;
       }
 
-      // 3. Save issue record to Supabase
       const { error: insertError } = await supabase.from('issues').insert([
         {
           what_issue: whatIssue,
@@ -167,7 +264,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
 
   return (
     <div style={{ padding: '10px 20px 30px', maxWidth: '600px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
-      
       <h2 style={{ color: '#0d3b66', marginTop: '0', marginBottom: '20px' }}>Open Issue</h2>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -220,53 +316,119 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             <option value="Assembly Line" style={{ color: '#000' }}>Assembly Line</option>
             <option value="Test Line" style={{ color: '#000' }}>Test Line</option>
             <option value="Transmission Line" style={{ color: '#000' }}>Transmission Line</option>
-            <option value="IT" style={{ color: '#000' }}>IT</option>
+            <option value="IT" style={{ color: '#000' }}>IT (All Stations)</option>
           </select>
         </div>
 
-        {/* Location / Station (Cascading Dropdown / Input) */}
+        {/* Location / Station dengan Dynamic Add & Delete */}
         <div>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Location / Station:</label>
-          {availableStations.length > 0 ? (
-            <select
-              required
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: '5px',
-                border: '1px solid #ccc',
-                boxSizing: 'border-box',
-                backgroundColor: '#fff',
-                cursor: 'pointer',
-                color: location ? '#000' : '#888'
-              }}
-            >
-              <option value="" disabled hidden>-- Choose Station ({availableStations.length} available) --</option>
-              {availableStations.map((stationCode) => (
-                <option key={stationCode} value={stationCode} style={{ color: '#000' }}>
-                  {stationCode}
-                </option>
-              ))}
-            </select>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+            <label style={{ fontWeight: 'bold' }}>Location / Station:</label>
+            {groupName && (
+              <button
+                type="button"
+                onClick={() => setIsAddingStation(!isAddingStation)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#2563eb',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  textDecoration: 'underline'
+                }}
+              >
+                {isAddingStation ? '← Kembali ke senarai' : '+ Tambah Stesen Baru'}
+              </button>
+            )}
+          </div>
+
+          {isAddingStation ? (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                placeholder="Contoh: STN700M"
+                value={newStationCode}
+                onChange={(e) => setNewStationCode(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '5px',
+                  border: '1px solid #2563eb',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleAddNewStation}
+                disabled={stationLoading}
+                style={{
+                  padding: '10px 16px',
+                  backgroundColor: '#2563eb',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '5px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                {stationLoading ? 'Saving...' : 'Save'}
+              </button>
+            </div>
           ) : (
-            <input 
-              type="text" 
-              value={location} 
-              onChange={(e) => setLocation(e.target.value)} 
-              required
-              placeholder={groupName ? "Enter Location or Station" : "Choose Group first"}
-              disabled={!groupName}
-              style={{ 
-                width: '100%', 
-                padding: '10px', 
-                borderRadius: '5px', 
-                border: '1px solid #ccc', 
-                boxSizing: 'border-box',
-                backgroundColor: !groupName ? '#f8fafc' : '#fff'
-              }}
-            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select
+                required
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                disabled={!groupName || stationLoading}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '5px',
+                  border: '1px solid #ccc',
+                  boxSizing: 'border-box',
+                  backgroundColor: !groupName ? '#f8fafc' : '#fff',
+                  cursor: 'pointer',
+                  color: location ? '#000' : '#888'
+                }}
+              >
+                <option value="" disabled hidden>
+                  {!groupName
+                    ? 'Sila pilih Group dahulu'
+                    : stationLoading
+                    ? 'Memuatkan senarai stesen...'
+                    : `-- Pilih Stesen (${stationList.length} stesen) --`}
+                </option>
+                {stationList.map((stn) => (
+                  <option key={stn} value={stn} style={{ color: '#000' }}>
+                    {stn}
+                  </option>
+                ))}
+              </select>
+
+              {location && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelectedStation}
+                  title="Padam stesen ini daripada senarai database"
+                  disabled={stationLoading}
+                  style={{
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '5px',
+                    padding: '8px 12px',
+                    fontWeight: 'bold',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  🗑️ Padam
+                </button>
+              )}
+            </div>
           )}
         </div>
 
