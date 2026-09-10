@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import imageCompression from 'browser-image-compression';
+import { GROUP_STATIONS } from '../data/stationData';
 
 export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [whatIssue, setWhatIssue] = useState('');
@@ -16,6 +17,9 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
 
+  // Senarai stesen berdasarkan Group yang dipilih
+  const availableStations = groupName && GROUP_STATIONS ? GROUP_STATIONS[groupName] || [] : [];
+
   // Ref untuk mengosongkan pilihan fail pada input browser
   const fileInputRef = useRef(null);
 
@@ -26,6 +30,13 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  // Fungsi apabila Group bertukar (kosongkan pilihan stesen lama)
+  const handleGroupChange = (e) => {
+    const selectedGroup = e.target.value;
+    setGroupName(selectedGroup);
+    setLocation('');
   };
 
   // Handle file selection and automatic image compression
@@ -193,7 +204,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           <select
             required
             value={groupName}
-            onChange={(e) => setGroupName(e.target.value)}
+            onChange={handleGroupChange}
             style={{
               width: '100%',
               padding: '10px',
@@ -213,17 +224,50 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Location / Station */}
+        {/* Location / Station (Cascading Dropdown / Input) */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Location / Station:</label>
-          <input 
-            type="text" 
-            value={location} 
-            onChange={(e) => setLocation(e.target.value)} 
-            required
-            placeholder="Enter Location or Station" 
-            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
-          />
+          {availableStations.length > 0 ? (
+            <select
+              required
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: '5px',
+                border: '1px solid #ccc',
+                boxSizing: 'border-box',
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                color: location ? '#000' : '#888'
+              }}
+            >
+              <option value="" disabled hidden>-- Choose Station ({availableStations.length} available) --</option>
+              {availableStations.map((stationCode) => (
+                <option key={stationCode} value={stationCode} style={{ color: '#000' }}>
+                  {stationCode}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input 
+              type="text" 
+              value={location} 
+              onChange={(e) => setLocation(e.target.value)} 
+              required
+              placeholder={groupName ? "Enter Location or Station" : "Choose Group first"}
+              disabled={!groupName}
+              style={{ 
+                width: '100%', 
+                padding: '10px', 
+                borderRadius: '5px', 
+                border: '1px solid #ccc', 
+                boxSizing: 'border-box',
+                backgroundColor: !groupName ? '#f8fafc' : '#fff'
+              }}
+            />
+          )}
         </div>
 
         {/* Person in Charge (PIC) */}
@@ -265,7 +309,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
               border: '1px solid #ccc', 
               boxSizing: 'border-box', 
               backgroundColor: '#fff', 
-              cursor: 'pointer',
+              cursor: 'pointer', 
               color: classification ? '#000' : '#888'
             }}
           >
@@ -302,7 +346,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 padding: '8px', 
                 borderRadius: '5px', 
                 border: '1px solid #ccc', 
-                boxSizing: 'border-box',
+                boxSizing: 'border-box', 
                 backgroundColor: '#fff'
               }}
             />
