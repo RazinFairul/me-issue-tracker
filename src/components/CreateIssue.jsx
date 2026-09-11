@@ -19,14 +19,16 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
 
   // Dynamic stations state
   const [stationList, setStationList] = useState([]);
-  const [isAddingStation, setIsAddingStation] = useState(false);
+  const [stationMode, setStationMode] = useState('select'); // 'select' | 'add' | 'delete'
   const [newStationCode, setNewStationCode] = useState('');
+  const [stationToDelete, setStationToDelete] = useState('');
   const [stationLoading, setStationLoading] = useState(false);
 
   // Dynamic engine variants state
   const [variantList, setVariantList] = useState([]);
-  const [isAddingVariant, setIsAddingVariant] = useState(false);
+  const [variantMode, setVariantMode] = useState('select'); // 'select' | 'add' | 'delete'
   const [newVariantName, setNewVariantName] = useState('');
+  const [variantToDelete, setVariantToDelete] = useState('');
   const [variantLoading, setVariantLoading] = useState(false);
 
   const fileInputRef = useRef(null);
@@ -36,6 +38,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     if (!groupName) {
       setStationList([]);
       setLocation('');
+      setStationMode('select');
       return;
     }
 
@@ -99,7 +102,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     const selectedGroup = e.target.value;
     setGroupName(selectedGroup);
     setLocation('');
-    setIsAddingStation(false);
+    setStationMode('select');
   };
 
   // Add new station to Supabase
@@ -129,30 +132,25 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       setStationList(updated);
       setLocation(trimmed);
       setNewStationCode('');
-      setIsAddingStation(false);
+      setStationMode('select');
     }
     setStationLoading(false);
   };
 
   // Delete station from Supabase
-  const handleDeleteSelectedStation = async () => {
-    if (!location) {
+  const handleDeleteStation = async () => {
+    if (!stationToDelete) {
       alert('Please select a station to delete.');
       return;
     }
 
-    if (!stationList.includes(location)) {
-      alert(`Station "${location}" does not exist in the database.`);
-      return;
-    }
-
     const confirmDelete = window.confirm(
-      `Are you sure you want to delete station "${location}" from the system?`
+      `Are you sure you want to permanently delete station "${stationToDelete}"?`
     );
     if (!confirmDelete) return;
 
     setStationLoading(true);
-    let query = supabase.from('stations').delete().eq('station_code', location);
+    let query = supabase.from('stations').delete().eq('station_code', stationToDelete);
 
     if (groupName !== 'IT') {
       query = query.eq('group_name', groupName);
@@ -163,10 +161,14 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     if (error) {
       alert('Failed to delete station: ' + error.message);
     } else {
-      const updated = stationList.filter((s) => s !== location);
+      const updated = stationList.filter((s) => s !== stationToDelete);
       setStationList(updated);
-      setLocation('');
-      alert(`Station "${location}" has been deleted successfully.`);
+      if (location === stationToDelete) {
+        setLocation('');
+      }
+      setStationToDelete('');
+      setStationMode('select');
+      alert(`Station "${stationToDelete}" has been deleted.`);
     }
     setStationLoading(false);
   };
@@ -196,25 +198,20 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       setVariantList(updated);
       setEngineVariant(trimmed);
       setNewVariantName('');
-      setIsAddingVariant(false);
+      setVariantMode('select');
     }
     setVariantLoading(false);
   };
 
   // Delete engine variant from Supabase
-  const handleDeleteSelectedVariant = async () => {
-    if (!engineVariant) {
+  const handleDeleteVariant = async () => {
+    if (!variantToDelete) {
       alert('Please select an engine variant to delete.');
       return;
     }
 
-    if (!variantList.includes(engineVariant)) {
-      alert(`Engine variant "${engineVariant}" does not exist in the database.`);
-      return;
-    }
-
     const confirmDelete = window.confirm(
-      `Are you sure you want to delete engine variant "${engineVariant}" from the system?`
+      `Are you sure you want to permanently delete engine variant "${variantToDelete}"?`
     );
     if (!confirmDelete) return;
 
@@ -222,15 +219,19 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     const { error } = await supabase
       .from('engine_variants')
       .delete()
-      .eq('variant_name', engineVariant);
+      .eq('variant_name', variantToDelete);
 
     if (error) {
       alert('Failed to delete engine variant: ' + error.message);
     } else {
-      const updated = variantList.filter((v) => v !== engineVariant);
+      const updated = variantList.filter((v) => v !== variantToDelete);
       setVariantList(updated);
-      setEngineVariant('');
-      alert(`Engine variant "${engineVariant}" has been deleted successfully.`);
+      if (engineVariant === variantToDelete) {
+        setEngineVariant('');
+      }
+      setVariantToDelete('');
+      setVariantMode('select');
+      alert(`Engine variant "${variantToDelete}" has been deleted.`);
     }
     setVariantLoading(false);
   };
@@ -412,7 +413,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
               backgroundColor: '#fff',
               cursor: 'pointer',
               color: groupName ? '#000' : '#888',
-              fontSize: '16px' // 16px menghalang iOS daripada auto-zoom
+              fontSize: '16px'
             }}
           >
             <option value="" disabled hidden>Choose Group</option>
@@ -424,30 +425,72 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Station Dropdown Native (100% iOS Edge & Safari Compatible) */}
+        {/* Station Field (Dedicated Add & Delete Action Buttons) */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Station (Optional):</label>
             {groupName && (
-              <button
-                type="button"
-                onClick={() => setIsAddingStation(!isAddingStation)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#2563eb',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  textDecoration: 'underline'
-                }}
-              >
-                {isAddingStation ? '← Back to select' : '+ Add New Station'}
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {stationMode !== 'select' ? (
+                  <button
+                    type="button"
+                    onClick={() => setStationMode('select')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563eb',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    ← Back to select
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setStationMode('add')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#2563eb',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      + Add Station
+                    </button>
+                    <span style={{ color: '#cbd5e1' }}>|</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStationToDelete(location || '');
+                        setStationMode('delete');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#dc2626',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      🗑️ Delete Station
+                    </button>
+                  </>
+                )}
+              </div>
             )}
           </div>
 
-          {isAddingStation ? (
+          {/* 1. Mod Tambah Stesen */}
+          {stationMode === 'add' && (
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
@@ -481,85 +524,150 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 {stationLoading ? 'Saving...' : 'Save'}
               </button>
             </div>
-          ) : (
+          )}
+
+          {/* 2. Mod Padam Stesen (Selamat & Terasing) */}
+          {stationMode === 'delete' && (
             <div style={{ display: 'flex', gap: '8px' }}>
               <select
-                value={location}
-                disabled={!groupName || stationLoading}
-                onChange={(e) => setLocation(e.target.value)}
+                value={stationToDelete}
+                onChange={(e) => setStationToDelete(e.target.value)}
                 style={{
                   flex: 1,
                   padding: '10px',
                   borderRadius: '5px',
-                  border: '1px solid #ccc',
+                  border: '1px solid #dc2626',
                   boxSizing: 'border-box',
-                  backgroundColor: !groupName ? '#f8fafc' : '#fff',
-                  color: location ? '#000' : '#888',
-                  fontSize: '16px',
-                  cursor: 'pointer'
+                  backgroundColor: '#fff',
+                  color: stationToDelete ? '#000' : '#888',
+                  fontSize: '16px'
                 }}
               >
-                <option value="">
-                  {!groupName
-                    ? 'Please select Group first'
-                    : stationLoading
-                    ? 'Loading stations...'
-                    : `-- Select Station (${stationList.length} available) --`}
-                </option>
+                <option value="">-- Choose station to remove --</option>
                 {stationList.map((stn) => (
                   <option key={stn} value={stn} style={{ color: '#000' }}>
                     {stn}
                   </option>
                 ))}
               </select>
-
-              {location && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelectedStation}
-                  title="Delete this station from database"
-                  disabled={stationLoading}
-                  style={{
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fca5a5',
-                    borderRadius: '5px',
-                    padding: '8px 12px',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  🗑️ Delete
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleDeleteStation}
+                disabled={stationLoading || !stationToDelete}
+                style={{
+                  padding: '10px 14px',
+                  backgroundColor: !stationToDelete ? '#fca5a5' : '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '5px',
+                  fontWeight: 'bold',
+                  cursor: !stationToDelete ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {stationLoading ? 'Deleting...' : 'Confirm Delete'}
+              </button>
             </div>
+          )}
+
+          {/* 3. Mod Pilihan Biasa (Select) - Tiada lagi butang Delete di sebelah */}
+          {stationMode === 'select' && (
+            <select
+              value={location}
+              disabled={!groupName || stationLoading}
+              onChange={(e) => setLocation(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: '5px',
+                border: '1px solid #ccc',
+                boxSizing: 'border-box',
+                backgroundColor: !groupName ? '#f8fafc' : '#fff',
+                color: location ? '#000' : '#888',
+                fontSize: '16px',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">
+                {!groupName
+                  ? 'Please select Group first'
+                  : stationLoading
+                  ? 'Loading stations...'
+                  : `-- Select Station (${stationList.length} available) --`}
+              </option>
+              {stationList.map((stn) => (
+                <option key={stn} value={stn} style={{ color: '#000' }}>
+                  {stn}
+                </option>
+              ))}
+            </select>
           )}
         </div>
 
-        {/* Engine Variant Dropdown Native (100% iOS Edge & Safari Compatible) */}
+        {/* Engine Variant Field (Dedicated Add & Delete Action Buttons) */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Engine Variant (Optional):</label>
-            <button
-              type="button"
-              onClick={() => setIsAddingVariant(!isAddingVariant)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#2563eb',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                textDecoration: 'underline'
-              }}
-            >
-              {isAddingVariant ? '← Back to select' : '+ Add New Variant'}
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {variantMode !== 'select' ? (
+                <button
+                  type="button"
+                  onClick={() => setVariantMode('select')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#2563eb',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  ← Back to select
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setVariantMode('add')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563eb',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    + Add Variant
+                  </button>
+                  <span style={{ color: '#cbd5e1' }}>|</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVariantToDelete(engineVariant || '');
+                      setVariantMode('delete');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#dc2626',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    🗑️ Delete Variant
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
-          {isAddingVariant ? (
+          {/* 1. Mod Tambah Varian */}
+          {variantMode === 'add' && (
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
@@ -593,58 +701,81 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 {variantLoading ? 'Saving...' : 'Save'}
               </button>
             </div>
-          ) : (
+          )}
+
+          {/* 2. Mod Padam Varian (Selamat & Terasing) */}
+          {variantMode === 'delete' && (
             <div style={{ display: 'flex', gap: '8px' }}>
               <select
-                value={engineVariant}
-                disabled={variantLoading}
-                onChange={(e) => setEngineVariant(e.target.value)}
+                value={variantToDelete}
+                onChange={(e) => setVariantToDelete(e.target.value)}
                 style={{
                   flex: 1,
                   padding: '10px',
                   borderRadius: '5px',
-                  border: '1px solid #ccc',
+                  border: '1px solid #dc2626',
                   boxSizing: 'border-box',
                   backgroundColor: '#fff',
-                  color: engineVariant ? '#000' : '#888',
-                  fontSize: '16px',
-                  cursor: 'pointer'
+                  color: variantToDelete ? '#000' : '#888',
+                  fontSize: '16px'
                 }}
               >
-                <option value="">
-                  {variantLoading
-                    ? 'Loading engine variants...'
-                    : `-- Select Engine Variant (${variantList.length} available) --`}
-                </option>
+                <option value="">-- Choose variant to remove --</option>
                 {variantList.map((v) => (
                   <option key={v} value={v} style={{ color: '#000' }}>
                     {v}
                   </option>
                 ))}
               </select>
-
-              {engineVariant && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelectedVariant}
-                  title="Delete this engine variant from database"
-                  disabled={variantLoading}
-                  style={{
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fca5a5',
-                    borderRadius: '5px',
-                    padding: '8px 12px',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  🗑️ Delete
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleDeleteVariant}
+                disabled={variantLoading || !variantToDelete}
+                style={{
+                  padding: '10px 14px',
+                  backgroundColor: !variantToDelete ? '#fca5a5' : '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '5px',
+                  fontWeight: 'bold',
+                  cursor: !variantToDelete ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {variantLoading ? 'Deleting...' : 'Confirm Delete'}
+              </button>
             </div>
+          )}
+
+          {/* 3. Mod Pilihan Biasa (Select) */}
+          {variantMode === 'select' && (
+            <select
+              value={engineVariant}
+              disabled={variantLoading}
+              onChange={(e) => setEngineVariant(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: '5px',
+                border: '1px solid #ccc',
+                boxSizing: 'border-box',
+                backgroundColor: '#fff',
+                color: engineVariant ? '#000' : '#888',
+                fontSize: '16px',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">
+                {variantLoading
+                  ? 'Loading engine variants...'
+                  : `-- Select Engine Variant (${variantList.length} available) --`}
+              </option>
+              {variantList.map((v) => (
+                <option key={v} value={v} style={{ color: '#000' }}>
+                  {v}
+                </option>
+              ))}
+            </select>
           )}
         </div>
 
