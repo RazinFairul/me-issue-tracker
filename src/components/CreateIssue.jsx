@@ -350,7 +350,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
-                placeholder="Example: STN700M/STN700-1M/STN700A-C/STN700-1A-C"
+                placeholder="Example: STN700M /STN700-1M /STN700A-C / STN700-1A-C"
                 value={newStationCode}
                 onChange={(e) => setNewStationCode(e.target.value.toUpperCase())}
                 style={{
@@ -482,9 +482,9 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             }}
           >
             <option value="" disabled hidden>Choose Issue Classification</option>
-            <option value="A" style={{ color: '#000' }}>Class A - Safety/Quality Issue/Government Issue/Without Temperory Countermeasure</option>
-            <option value="B" style={{ color: '#000' }}>Class B - Cause to Breakdown/Downtime Production/With Temperory Countermeasure</option>
-            <option value="C" style={{ color: '#000' }}>Class C - Minor Issue/Improvement</option>
+            <option value="A" style={{ color: '#000' }}>Class A - Safety / Quality Issue / Government Issue / Without Temperory Countermeasure</option>
+            <option value="B" style={{ color: '#000' }}>Class B - Cause to Breakdown / Downtime Production / With Temperory Countermeasure</option>
+            <option value="C" style={{ color: '#000' }}>Class C - Minor Issue / Improvement</option>
           </select>
         </div>
 
