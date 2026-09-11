@@ -54,20 +54,19 @@
   transform: translateY(-1px) scale(0.99);
 }
 
-/* --- Penyelarasan Khas Skrin Telefon Pintar (Mobile 100% Tepat) --- */
+/* --- Penyelarasan Khas Skrin Telefon Pintar (Mobile <= 768px) --- */
 @media (max-width: 768px) {
   .embed-landing-container {
     background-size: 100% 100%;
     background-position: center center;
   }
 
-  /* Menutup 100% pil kuning asal tanpa sebarang bocoran warna */
   .animated-login-btn {
     top: 54.35%;                        /* Titik tengah Y tepat */
-    left: 51.3%;                        /* Titik tengah X tepat mengikut butang asal */
+    left: 51.3%;                        /* Titik tengah X tepat */
     transform: translate(-50%, -50%);   /* Mengunci kedudukan tepat pada pusat */
-    width: 24.8%;                       /* Padan tepat dengan lebar pil asal */
-    height: 4.8%;                       /* Padan tepat dengan ketinggian pil asal */
+    width: 24.8%;                       
+    height: 4.8%;                       
     padding: 0;
     margin: 0;
     background: linear-gradient(180deg, #ffa200 0%, #ff7b00 100%);
@@ -87,5 +86,40 @@
     transform: translate(-50%, -50%) scale(1.03);
     border-color: #ffffff;
     box-shadow: 0 5px 14px rgba(255, 140, 0, 0.5), 0 3px 8px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* --- Penyelarasan Khas Tablet / iPad Portrait (769px - 1024px) --- */
+@media (min-width: 769px) and (max-width: 1024px) and (orientation: portrait) {
+  .embed-landing-container {
+    background-size: 100% 100%;
+    background-position: center center;
+  }
+
+  .animated-login-btn {
+    top: 54.35%;                        /* Selaras dengan grafik HomepageMobile.png */
+    left: 51.3%;                        
+    transform: translate(-50%, -50%);   
+    width: 24.8%;                       
+    height: 5.2%;                       
+    padding: 0;
+    margin: 0;
+    background: linear-gradient(180deg, #ffa200 0%, #ff7b00 100%);
+    color: #ffffff;
+    font-size: 16px;                    /* Saiz teks lebih jelas untuk saiz skrin tablet */
+    font-weight: 900;
+    letter-spacing: 1px;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    border-radius: 999px;
+    outline: none;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .animated-login-btn:hover,
+  .animated-login-btn:active {
+    transform: translate(-50%, -50%) scale(1.03);
+    border-color: #ffffff;
+    box-shadow: 0 6px 16px rgba(255, 140, 0, 0.5), 0 4px 10px rgba(0, 0, 0, 0.35);
   }
 }
