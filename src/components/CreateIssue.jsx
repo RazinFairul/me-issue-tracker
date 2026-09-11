@@ -22,16 +22,36 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [isAddingStation, setIsAddingStation] = useState(false);
   const [newStationCode, setNewStationCode] = useState('');
   const [stationLoading, setStationLoading] = useState(false);
-  const [isSearchStation, setIsSearchStation] = useState(false);
+  const [showStationDropdown, setShowStationDropdown] = useState(false);
 
   // Dynamic engine variants state
   const [variantList, setVariantList] = useState([]);
   const [isAddingVariant, setIsAddingVariant] = useState(false);
   const [newVariantName, setNewVariantName] = useState('');
   const [variantLoading, setVariantLoading] = useState(false);
-  const [isSearchVariant, setIsSearchVariant] = useState(false);
+  const [showVariantDropdown, setShowVariantDropdown] = useState(false);
 
   const fileInputRef = useRef(null);
+  const stationContainerRef = useRef(null);
+  const variantContainerRef = useRef(null);
+
+  // Tutup dropdown bila user klik di luar kawasan dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (stationContainerRef.current && !stationContainerRef.current.contains(event.target)) {
+        setShowStationDropdown(false);
+      }
+      if (variantContainerRef.current && !variantContainerRef.current.contains(event.target)) {
+        setShowVariantDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
 
   // Fetch stations from Supabase table based on selected Group
   useEffect(() => {
@@ -102,6 +122,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     setGroupName(selectedGroup);
     setLocation('');
     setIsAddingStation(false);
+    setShowStationDropdown(false);
   };
 
   // Add new station to Supabase
@@ -366,6 +387,16 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     }
   };
 
+  // Filter list stesen mengikut apa yang user taip
+  const filteredStations = stationList.filter((stn) =>
+    stn.toLowerCase().includes(location.toLowerCase())
+  );
+
+  // Filter list engine variant mengikut apa yang user taip
+  const filteredVariants = variantList.filter((v) =>
+    v.toLowerCase().includes(engineVariant.toLowerCase())
+  );
+
   return (
     <div style={{ padding: '10px 20px 30px', maxWidth: '600px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
       <h2 style={{ color: '#0d3b66', marginTop: '0', marginBottom: '20px' }}>Open Issue</h2>
@@ -425,49 +456,30 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Station (Mobile Friendly + Search Mode) */}
-        <div>
+        {/* Station (Type to Search & Click Dropdown - 100% Mobile Friendly) */}
+        <div ref={stationContainerRef} style={{ position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Station (Optional):</label>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              {groupName && !isAddingStation && (
-                <button
-                  type="button"
-                  onClick={() => setIsSearchStation(!isSearchStation)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#0d3b66',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    textDecoration: 'underline'
-                  }}
-                >
-                  {isSearchStation ? '📋 Dropdown Mode' : '🔍 Search Mode'}
-                </button>
-              )}
-              {groupName && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddingStation(!isAddingStation);
-                    setIsSearchStation(false);
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#2563eb',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    textDecoration: 'underline'
-                  }}
-                >
-                  {isAddingStation ? '← Cancel' : '+ Add Station'}
-                </button>
-              )}
-            </div>
+            {groupName && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingStation(!isAddingStation);
+                  setShowStationDropdown(false);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#2563eb',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  textDecoration: 'underline'
+                }}
+              >
+                {isAddingStation ? '← Back to search' : '+ Add Station'}
+              </button>
+            )}
           </div>
 
           {isAddingStation ? (
@@ -503,151 +515,158 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 {stationLoading ? 'Saving...' : 'Save'}
               </button>
             </div>
-          ) : isSearchStation ? (
-            /* Search / Datalist input */
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                list="station-options"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                disabled={!groupName || stationLoading}
-                placeholder={
-                  !groupName
-                    ? 'Please select Group first'
-                    : `Type to search (${stationList.length} stations)...`
-                }
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #ccc',
-                  boxSizing: 'border-box',
-                  backgroundColor: !groupName ? '#f8fafc' : '#fff',
-                  color: '#000'
-                }}
-              />
-              <datalist id="station-options">
-                {stationList.map((stn) => (
-                  <option key={stn} value={stn} />
-                ))}
-              </datalist>
-              {location && stationList.includes(location) && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelectedStation}
-                  disabled={stationLoading}
-                  style={{
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fca5a5',
-                    borderRadius: '5px',
-                    padding: '8px 12px',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  🗑️
-                </button>
-              )}
-            </div>
           ) : (
-            /* Standard Native Dropdown (Mobile 100% Compatible) */
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <select
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                disabled={!groupName || stationLoading}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #ccc',
-                  boxSizing: 'border-box',
-                  backgroundColor: !groupName ? '#f8fafc' : '#fff',
-                  color: location ? '#000' : '#888',
-                  fontSize: '14px'
-                }}
-              >
-                <option value="">
-                  {!groupName
-                    ? 'Please select Group first'
-                    : stationLoading
-                    ? 'Loading stations...'
-                    : `-- Select Station (${stationList.length} available) --`}
-                </option>
-                {stationList.map((stn) => (
-                  <option key={stn} value={stn} style={{ color: '#000' }}>
-                    {stn}
-                  </option>
-                ))}
-              </select>
-              {location && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelectedStation}
-                  disabled={stationLoading}
+            <div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    type="text"
+                    value={location}
+                    disabled={!groupName || stationLoading}
+                    onChange={(e) => {
+                      setLocation(e.target.value);
+                      setShowStationDropdown(true);
+                    }}
+                    onFocus={() => {
+                      if (groupName) setShowStationDropdown(true);
+                    }}
+                    placeholder={
+                      !groupName
+                        ? 'Please select Group first'
+                        : stationLoading
+                        ? 'Loading stations...'
+                        : `Type or select station (${stationList.length} available)...`
+                    }
+                    style={{
+                      width: '100%',
+                      padding: '10px 35px 10px 10px',
+                      borderRadius: '5px',
+                      border: '1px solid #ccc',
+                      boxSizing: 'border-box',
+                      backgroundColor: !groupName ? '#f8fafc' : '#fff',
+                      color: '#000'
+                    }}
+                  />
+                  {/* Arrow Icon button to toggle list */}
+                  <button
+                    type="button"
+                    disabled={!groupName || stationLoading}
+                    onClick={() => setShowStationDropdown(!showStationDropdown)}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: '#666',
+                      padding: '6px'
+                    }}
+                  >
+                    {showStationDropdown ? '▲' : '▼'}
+                  </button>
+                </div>
+
+                {location && stationList.includes(location) && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteSelectedStation}
+                    title="Delete this station from database"
+                    disabled={stationLoading}
+                    style={{
+                      backgroundColor: '#fee2e2',
+                      color: '#dc2626',
+                      border: '1px solid #fca5a5',
+                      borderRadius: '5px',
+                      padding: '8px 12px',
+                      fontWeight: 'bold',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    🗑️ Delete
+                  </button>
+                )}
+              </div>
+
+              {/* Popup Senarai Dropdown Yang Mesra Telefon & Laptop */}
+              {showStationDropdown && groupName && (
+                <div
                   style={{
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fca5a5',
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#fff',
+                    border: '1px solid #2563eb',
                     borderRadius: '5px',
-                    padding: '8px 12px',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
+                    maxHeight: '220px',
+                    overflowY: 'auto',
+                    zIndex: 9999,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    marginTop: '4px'
                   }}
                 >
-                  🗑️ Delete
-                </button>
+                  {filteredStations.length > 0 ? (
+                    filteredStations.map((stn) => (
+                      <div
+                        key={stn}
+                        onMouseDown={() => {
+                          setLocation(stn);
+                          setShowStationDropdown(false);
+                        }}
+                        onTouchStart={() => {
+                          setLocation(stn);
+                          setShowStationDropdown(false);
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f1f5f9',
+                          backgroundColor: location === stn ? '#eff6ff' : '#fff',
+                          fontWeight: location === stn ? 'bold' : 'normal',
+                          color: '#0f172a'
+                        }}
+                      >
+                        {stn}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: '10px', color: '#888', textAlign: 'center', fontSize: '13px' }}>
+                      No station found. You can add it using <b>+ Add Station</b>.
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
         </div>
 
-        {/* Engine Variant (Mobile Friendly + Search Mode) */}
-        <div>
+        {/* Engine Variant (Type to Search & Click Dropdown - 100% Mobile Friendly) */}
+        <div ref={variantContainerRef} style={{ position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Engine Variant (Optional):</label>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              {!isAddingVariant && (
-                <button
-                  type="button"
-                  onClick={() => setIsSearchVariant(!isSearchVariant)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#0d3b66',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    textDecoration: 'underline'
-                  }}
-                >
-                  {isSearchVariant ? '📋 Dropdown Mode' : '🔍 Search Mode'}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAddingVariant(!isAddingVariant);
-                  setIsSearchVariant(false);
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#2563eb',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  textDecoration: 'underline'
-                }}
-              >
-                {isAddingVariant ? '← Cancel' : '+ Add Variant'}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsAddingVariant(!isAddingVariant);
+                setShowVariantDropdown(false);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#2563eb',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                textDecoration: 'underline'
+              }}
+            >
+              {isAddingVariant ? '← Back to search' : '+ Add Variant'}
+            </button>
           </div>
 
           {isAddingVariant ? (
@@ -683,98 +702,127 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 {variantLoading ? 'Saving...' : 'Save'}
               </button>
             </div>
-          ) : isSearchVariant ? (
-            /* Search / Datalist input */
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                list="variant-options"
-                value={engineVariant}
-                onChange={(e) => setEngineVariant(e.target.value)}
-                placeholder={`Type to search (${variantList.length} variants)...`}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #ccc',
-                  boxSizing: 'border-box',
-                  backgroundColor: '#fff',
-                  color: '#000'
-                }}
-              />
-              <datalist id="variant-options">
-                {variantList.map((v) => (
-                  <option key={v} value={v} />
-                ))}
-              </datalist>
-              {engineVariant && variantList.includes(engineVariant) && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelectedVariant}
-                  disabled={variantLoading}
-                  style={{
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fca5a5',
-                    borderRadius: '5px',
-                    padding: '8px 12px',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  🗑️
-                </button>
-              )}
-            </div>
           ) : (
-            /* Standard Native Dropdown (Mobile 100% Compatible) */
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <select
-                value={engineVariant}
-                onChange={(e) => setEngineVariant(e.target.value)}
-                disabled={variantLoading}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #ccc',
-                  boxSizing: 'border-box',
-                  backgroundColor: '#fff',
-                  color: engineVariant ? '#000' : '#888',
-                  fontSize: '14px'
-                }}
-              >
-                <option value="">
-                  {variantLoading
-                    ? 'Loading engine variants...'
-                    : `-- Select Engine Variant (${variantList.length} available) --`}
-                </option>
-                {variantList.map((v) => (
-                  <option key={v} value={v} style={{ color: '#000' }}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-              {engineVariant && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelectedVariant}
-                  disabled={variantLoading}
+            <div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    type="text"
+                    value={engineVariant}
+                    disabled={variantLoading}
+                    onChange={(e) => {
+                      setEngineVariant(e.target.value);
+                      setShowVariantDropdown(true);
+                    }}
+                    onFocus={() => setShowVariantDropdown(true)}
+                    placeholder={
+                      variantLoading
+                        ? 'Loading engine variants...'
+                        : `Type or select engine variant (${variantList.length} available)...`
+                    }
+                    style={{
+                      width: '100%',
+                      padding: '10px 35px 10px 10px',
+                      borderRadius: '5px',
+                      border: '1px solid #ccc',
+                      boxSizing: 'border-box',
+                      backgroundColor: '#fff',
+                      color: '#000'
+                    }}
+                  />
+                  {/* Arrow Icon button to toggle list */}
+                  <button
+                    type="button"
+                    disabled={variantLoading}
+                    onClick={() => setShowVariantDropdown(!showVariantDropdown)}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: '#666',
+                      padding: '6px'
+                    }}
+                  >
+                    {showVariantDropdown ? '▲' : '▼'}
+                  </button>
+                </div>
+
+                {engineVariant && variantList.includes(engineVariant) && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteSelectedVariant}
+                    title="Delete this engine variant from database"
+                    disabled={variantLoading}
+                    style={{
+                      backgroundColor: '#fee2e2',
+                      color: '#dc2626',
+                      border: '1px solid #fca5a5',
+                      borderRadius: '5px',
+                      padding: '8px 12px',
+                      fontWeight: 'bold',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    🗑️ Delete
+                  </button>
+                )}
+              </div>
+
+              {/* Popup Dropdown Engine Variant */}
+              {showVariantDropdown && (
+                <div
                   style={{
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fca5a5',
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#fff',
+                    border: '1px solid #2563eb',
                     borderRadius: '5px',
-                    padding: '8px 12px',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
+                    maxHeight: '220px',
+                    overflowY: 'auto',
+                    zIndex: 9999,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    marginTop: '4px'
                   }}
                 >
-                  🗑️ Delete
-                </button>
+                  {filteredVariants.length > 0 ? (
+                    filteredVariants.map((v) => (
+                      <div
+                        key={v}
+                        onMouseDown={() => {
+                          setEngineVariant(v);
+                          setShowVariantDropdown(false);
+                        }}
+                        onTouchStart={() => {
+                          setEngineVariant(v);
+                          setShowVariantDropdown(false);
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f1f5f9',
+                          backgroundColor: engineVariant === v ? '#eff6ff' : '#fff',
+                          fontWeight: engineVariant === v ? 'bold' : 'normal',
+                          color: '#0f172a'
+                        }}
+                      >
+                        {v}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: '10px', color: '#888', textAlign: 'center', fontSize: '13px' }}>
+                      No variant found. You can add it using <b>+ Add Variant</b>.
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
