@@ -2,11 +2,19 @@ import React, { useEffect, useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 
-const DEFAULT_MATRIX = {
-  '1/4': { root_cause: '', countermeasure: '', progress: '', remark: '', links: [] },
-  '2/4': { root_cause: '', countermeasure: '', progress: '', remark: '', links: [] },
-  '3/4': { root_cause: '', countermeasure: '', progress: '', remark: '', links: [] },
-  '4/4': { root_cause: '', countermeasure: '', progress: '', remark: '', links: [] }
+const STAGE_ORDER = {
+  'In Progress (1/4)': 1,
+  'In Progress (2/4)': 2,
+  'In Progress (3/4)': 3,
+  'Closed (4/4)': 4,
+  'Closed': 4
+};
+
+const DEFAULT_STAGES = {
+  '1/4': { progress: '', remark: '', links: [] },
+  '2/4': { progress: '', remark: '', links: [] },
+  '3/4': { progress: '', remark: '', links: [] },
+  '4/4': { progress: '', remark: '', links: [] }
 };
 
 export default function IssueList({ onBackToDashboard, refreshTrigger }) {
@@ -33,10 +41,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [newEstClosingDate, setNewEstClosingDate] = useState('');
   const [savingEstDate, setSavingEstDate] = useState(false);
 
-  // Update Progress Modal State
+  // Update Modal State
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [modalStatus, setModalStatus] = useState('In Progress (1/4)');
-  const [progressMatrix, setProgressMatrix] = useState(DEFAULT_MATRIX);
+  const [rootCause, setRootCause] = useState('');
+  const [countermeasure, setCountermeasure] = useState('');
+  const [stageDetails, setStageDetails] = useState(DEFAULT_STAGES);
   const [activeStageTab, setActiveStageTab] = useState('1/4');
   const [tempLinkInput, setTempLinkInput] = useState('');
   const [updating, setUpdating] = useState(false);
@@ -260,7 +270,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }
   };
 
-  // Open Update Modal and initialise matrix
+  // Open Update Modal and Load Existing Progress Matrix
   const handleOpenUpdateModal = (issue) => {
     setSelectedIssue(issue);
     let cur = issue.status;
@@ -268,25 +278,59 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     if (cur === 'Completed' || cur === 'Complete' || cur === 'Closed') cur = 'Closed (4/4)';
     setModalStatus(cur);
 
-    let stage = '1/4';
-    if (cur.includes('2/4')) stage = '2/4';
-    if (cur.includes('3/4')) stage = '3/4';
-    if (cur.includes('4/4')) stage = '4/4';
-    setActiveStageTab(stage);
+    // Initialise matrix from DB
+    const matrix = issue.progress_matrix && typeof issue.progress_matrix === 'object' ? issue.progress_matrix : {};
+    
+    // Shared Root Cause & Countermeasure
+    setRootCause(matrix.root_cause || issue.root_cause || '');
+    setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
 
-    const existingMatrix = issue.progress_matrix && typeof issue.progress_matrix === 'object'
-      ? { ...DEFAULT_MATRIX, ...issue.progress_matrix }
-      : {
-          ...DEFAULT_MATRIX,
-          '1/4': { ...DEFAULT_MATRIX['1/4'], progress: issue.progress_note || '' }
-        };
+    // Per-stage details
+    setStageDetails({
+      '1/4': {
+        progress: matrix['1/4']?.progress || (matrix['1/4'] ? '' : issue.progress_note || ''),
+        remark: matrix['1/4']?.remark || '',
+        links: matrix['1/4']?.links || []
+      },
+      '2/4': {
+        progress: matrix['2/4']?.progress || '',
+        remark: matrix['2/4']?.remark || '',
+        links: matrix['2/4']?.links || []
+      },
+      '3/4': {
+        progress: matrix['3/4']?.progress || '',
+        remark: matrix['3/4']?.remark || '',
+        links: matrix['3/4']?.links || []
+      },
+      '4/4': {
+        progress: matrix['4/4']?.progress || '',
+        remark: matrix['4/4']?.remark || '',
+        links: matrix['4/4']?.links || []
+      }
+    });
 
-    setProgressMatrix(existingMatrix);
+    // Default to active stage tab based on current status
+    let activeStage = '1/4';
+    if (cur.includes('2/4')) activeStage = '2/4';
+    if (cur.includes('3/4')) activeStage = '3/4';
+    if (cur.includes('4/4')) activeStage = '4/4';
+    setActiveStageTab(activeStage);
+
     setTempLinkInput('');
   };
 
-  const handleMatrixChange = (field, value) => {
-    setProgressMatrix((prev) => ({
+  // Determine which stages are unlocked based on selected status in modal
+  const maxUnlockedLevel = useMemo(() => {
+    return STAGE_ORDER[modalStatus] || 1;
+  }, [modalStatus]);
+
+  const isStageUnlocked = (stageKey) => {
+    const stageMap = { '1/4': 1, '2/4': 2, '3/4': 3, '4/4': 4 };
+    return stageMap[stageKey] <= maxUnlockedLevel;
+  };
+
+  const handleStageFieldChange = (field, value) => {
+    setStageDetails((prev) => ({
       ...prev,
       [activeStageTab]: {
         ...prev[activeStageTab],
@@ -301,12 +345,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     try {
       new URL(trimmed);
     } catch (_) {
-      alert('Please enter a valid URL (e.g., https://...)');
+      alert('Please enter a valid URL (e.g. https://...)');
       return;
     }
 
-    const currentLinks = progressMatrix[activeStageTab]?.links || [];
-    setProgressMatrix((prev) => ({
+    const currentLinks = stageDetails[activeStageTab]?.links || [];
+    setStageDetails((prev) => ({
       ...prev,
       [activeStageTab]: {
         ...prev[activeStageTab],
@@ -316,13 +360,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setTempLinkInput('');
   };
 
-  const handleRemoveLink = (indexToRemove) => {
-    const currentLinks = progressMatrix[activeStageTab]?.links || [];
-    setProgressMatrix((prev) => ({
+  const handleRemoveLink = (idxToRemove) => {
+    const currentLinks = stageDetails[activeStageTab]?.links || [];
+    setStageDetails((prev) => ({
       ...prev,
       [activeStageTab]: {
         ...prev[activeStageTab],
-        links: currentLinks.filter((_, idx) => idx !== indexToRemove)
+        links: currentLinks.filter((_, idx) => idx !== idxToRemove)
       }
     }));
   };
@@ -332,23 +376,32 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setUpdating(true);
     const now = new Date().toISOString();
 
-    const stageNote = progressMatrix[activeStageTab]?.progress || '';
-    const standardizedStatus = modalStatus === 'Closed' ? 'Closed (4/4)' : modalStatus;
+    const structuredPayload = {
+      root_cause: rootCause,
+      countermeasure: countermeasure,
+      '1/4': stageDetails['1/4'],
+      '2/4': stageDetails['2/4'],
+      '3/4': stageDetails['3/4'],
+      '4/4': stageDetails['4/4']
+    };
+
+    // Update progress_note column with the latest active stage note for dashboard fallback
+    const latestNote = stageDetails[activeStageTab]?.progress || selectedIssue.progress_note || '';
 
     const { error } = await supabase
       .from('issues')
       .update({
-        status: standardizedStatus,
-        progress_note: stageNote || selectedIssue.progress_note,
-        progress_matrix: progressMatrix,
-        updated_at: now,
+        status: modalStatus,
+        progress_note: latestNote,
+        progress_matrix: structuredPayload,
+        updated_at: now
       })
       .eq('id', selectedIssue.id);
 
     if (error) {
       alert('Failed to update progress: ' + error.message);
     } else {
-      alert('Progress table and links updated successfully!');
+      alert('Progress updated successfully!');
       setSelectedIssue(null);
       fetchIssues();
     }
@@ -459,12 +512,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const formattedData = filteredIssues.map((i, index) => {
       const exportStatus = (!i.status || i.status === 'Open') ? 'In Progress (1/4)' : i.status;
       const rawDate = i.date_time || i.created_at;
-
       const pMatrix = i.progress_matrix || {};
-      const compileStage = (stage) => {
-        const row = pMatrix[stage];
-        if (!row) return '-';
-        return `[RC: ${row.root_cause || '-'}] [CM: ${row.countermeasure || '-'}] [Prog: ${row.progress || '-'}] [Rem: ${row.remark || '-'}]`;
+
+      const formatStage = (stg) => {
+        const item = pMatrix[stg];
+        if (!item) return '-';
+        return `[Prog: ${item.progress || '-'}] [Remark: ${item.remark || '-'}]`;
       };
 
       return {
@@ -479,10 +532,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         'Location / Station': i.location || '-',
         'Engine Variant': i.engine_variant || '-',
         'Person in Charge': i.pic_name || i.pic || '-',
-        'Stage 1/4 Details': compileStage('1/4'),
-        'Stage 2/4 Details': compileStage('2/4'),
-        'Stage 3/4 Details': compileStage('3/4'),
-        'Stage 4/4 Details': compileStage('4/4'),
+        'Root Cause (Overall)': pMatrix.root_cause || '-',
+        'Countermeasure (Overall)': pMatrix.countermeasure || '-',
+        'Stage 1/4 (Progress & Remark)': formatStage('1/4'),
+        'Stage 2/4 (Progress & Remark)': formatStage('2/4'),
+        'Stage 3/4 (Progress & Remark)': formatStage('3/4'),
+        'Stage 4/4 (Progress & Remark)': formatStage('4/4'),
         'Estimate Closing Date': i.estimated_closing ? formatDateOnly(i.estimated_closing) : '-',
         'File Attachment URL': i.file_url || '-',
         'External Link': i.onedrive_link || '-'
@@ -662,7 +717,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 5. Location (Filtered by Group) */}
+          {/* 5. Location */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📍 Location:
@@ -840,17 +895,23 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       )}
                     </div>
 
-                    {/* Matrix Summary on Card */}
+                    {/* Overall Root Cause & Countermeasure */}
+                    {(matrix.root_cause || matrix.countermeasure) && (
+                      <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '4px', padding: '6px 8px', marginTop: '6px', fontSize: '11px' }}>
+                        {matrix.root_cause && <div>🔍 <b>Root Cause:</b> {matrix.root_cause}</div>}
+                        {matrix.countermeasure && <div style={{ marginTop: '3px' }}>🛠️ <b>Countermeasure:</b> {matrix.countermeasure}</div>}
+                      </div>
+                    )}
+
+                    {/* Progress & Remark for Each Stage */}
                     {['1/4', '2/4', '3/4', '4/4'].map((stg) => {
                       const data = matrix[stg];
-                      if (!data || (!data.progress && !data.root_cause && !data.countermeasure && (!data.links || data.links.length === 0))) return null;
+                      if (!data || (!data.progress && !data.remark && (!data.links || data.links.length === 0))) return null;
                       return (
                         <div key={stg} style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 8px', borderRadius: '4px', marginTop: '4px', fontSize: '11px' }}>
-                          <span style={{ fontWeight: 'bold', color: '#0369a1' }}>Stage {stg}:</span>
-                          {data.root_cause && <div>• <b>RC:</b> {data.root_cause}</div>}
-                          {data.countermeasure && <div>• <b>CM:</b> {data.countermeasure}</div>}
-                          {data.progress && <div>• <b>Prog:</b> {data.progress}</div>}
-                          {data.remark && <div>• <b>Rem:</b> {data.remark}</div>}
+                          <span style={{ fontWeight: 'bold', color: '#0369a1' }}>Phase {stg}:</span>
+                          {data.progress && <div>• <b>Progress:</b> {data.progress}</div>}
+                          {data.remark && <div>• <b>Remark:</b> {data.remark}</div>}
                           {data.links && data.links.length > 0 && (
                             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '3px' }}>
                               {data.links.map((lnk, lIdx) => (
@@ -945,10 +1006,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       {/* Structured Progress & Multi-Link Table Modal */}
       {selectedIssue && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '15px' }}>
-          <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
+          <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '100%', maxWidth: '750px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <h3 style={{ margin: 0, color: '#0d3b66', fontSize: '18px' }}>Update Issue Progress Table</h3>
+              <h3 style={{ margin: 0, color: '#0d3b66', fontSize: '18px' }}>Update Progress & Action Details</h3>
               <button
                 type="button"
                 onClick={() => setSelectedIssue(null)}
@@ -964,95 +1025,127 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
             <form onSubmit={handleSaveProgressMatrix}>
               
-              {/* Status Selector */}
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px' }}>
+              {/* Status Selector - Drives Unlocking of Stages */}
+              <div style={{ marginBottom: '15px', backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '6px' }}>
+                <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px', color: '#0f172a' }}>
                   Current Closing Status (Harvey Ball):
                 </label>
                 <select
                   value={modalStatus}
-                  onChange={(e) => setModalStatus(e.target.value)}
-                  style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '13px', backgroundColor: '#fff' }}
+                  onChange={(e) => {
+                    const newSt = e.target.value;
+                    setModalStatus(newSt);
+                    // If user selects 2/4, automatic tab switch to 2/4
+                    if (newSt.includes('2/4')) setActiveStageTab('2/4');
+                    else if (newSt.includes('3/4')) setActiveStageTab('3/4');
+                    else if (newSt.includes('4/4')) setActiveStageTab('4/4');
+                  }}
+                  style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #0d3b66', fontSize: '13px', backgroundColor: '#fff', fontWeight: 'bold' }}
                 >
                   <option value="In Progress (1/4)">◔ In Progress (1/4)</option>
                   <option value="In Progress (2/4)">◑ In Progress (2/4)</option>
                   <option value="In Progress (3/4)">◕ In Progress (3/4)</option>
                   <option value="Closed (4/4)">⚫ Closed (4/4)</option>
                 </select>
+                <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
+                  *Changing to higher progress unlocks the corresponding phase below.
+                </small>
               </div>
 
-              {/* Stage Tabs (1/4, 2/4, 3/4, 4/4) */}
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '6px' }}>
-                {['1/4', '2/4', '3/4', '4/4'].map((stage) => (
-                  <button
-                    key={stage}
-                    type="button"
-                    onClick={() => setActiveStageTab(stage)}
-                    style={{
-                      padding: '6px 12px',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      backgroundColor: activeStageTab === stage ? '#0d3b66' : '#f1f5f9',
-                      color: activeStageTab === stage ? '#fff' : '#475569'
-                    }}
-                  >
-                    Stage {stage}
-                  </button>
-                ))}
-              </div>
-
-              {/* Progress Table Inputs for active stage */}
-              <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '12px', marginBottom: '15px', backgroundColor: '#f8fafc' }}>
-                <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#0d3b66', display: 'block', marginBottom: '10px' }}>
-                  Details for Stage {activeStageTab}:
+              {/* 1. Root Cause & Countermeasure (Overall for Issue) */}
+              <div style={{ border: '1px solid #bfdbfe', backgroundColor: '#eff6ff', borderRadius: '6px', padding: '12px', marginBottom: '16px' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e3a8a', display: 'block', marginBottom: '8px' }}>
+                  📋 Overall Root Cause & Countermeasure:
                 </span>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>Root Cause:</label>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a', display: 'block', marginBottom: '3px' }}>
+                      Root Cause:
+                    </label>
                     <textarea
                       rows="2"
-                      placeholder="Enter Root Cause..."
-                      value={progressMatrix[activeStageTab]?.root_cause || ''}
-                      onChange={(e) => handleMatrixChange('root_cause', e.target.value)}
-                      style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                      placeholder="Enter underlying root cause..."
+                      value={rootCause}
+                      onChange={(e) => setRootCause(e.target.value)}
+                      style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #93c5fd', boxSizing: 'border-box' }}
                     />
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>Countermeasure:</label>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a', display: 'block', marginBottom: '3px' }}>
+                      Countermeasure:
+                    </label>
                     <textarea
                       rows="2"
-                      placeholder="Enter Countermeasure..."
-                      value={progressMatrix[activeStageTab]?.countermeasure || ''}
-                      onChange={(e) => handleMatrixChange('countermeasure', e.target.value)}
-                      style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                      placeholder="Enter countermeasure / action plan..."
+                      value={countermeasure}
+                      onChange={(e) => setCountermeasure(e.target.value)}
+                      style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #93c5fd', boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
+              </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+              {/* 2. Stage Tabs with Dynamic Lock Icon */}
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '6px' }}>
+                {['1/4', '2/4', '3/4', '4/4'].map((stage) => {
+                  const unlocked = isStageUnlocked(stage);
+                  const isSelected = activeStageTab === stage;
+                  return (
+                    <button
+                      key={stage}
+                      type="button"
+                      disabled={!unlocked}
+                      onClick={() => setActiveStageTab(stage)}
+                      style={{
+                        padding: '6px 12px',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: unlocked ? 'pointer' : 'not-allowed',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        backgroundColor: isSelected ? '#0d3b66' : unlocked ? '#e2e8f0' : '#f1f5f9',
+                        color: isSelected ? '#fff' : unlocked ? '#1e293b' : '#94a3b8',
+                        opacity: unlocked ? 1 : 0.6
+                      }}
+                      title={!unlocked ? `Update status to at least ${stage} to unlock this tab.` : ''}
+                    >
+                      {!unlocked ? '🔒 ' : '✓ '} Phase {stage}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 3. Progress & Remark Inputs for Active Stage */}
+              <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '14px', marginBottom: '15px', backgroundColor: '#f8fafc' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#0d3b66', display: 'block', marginBottom: '10px' }}>
+                  Progress & Remark for Phase {activeStageTab}:
+                </span>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px', marginBottom: '10px' }}>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>Progress / Action Taken:</label>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '3px' }}>
+                      Progress / Action Taken ({activeStageTab}):
+                    </label>
                     <textarea
-                      rows="2"
-                      placeholder="Enter Progress..."
-                      value={progressMatrix[activeStageTab]?.progress || ''}
-                      onChange={(e) => handleMatrixChange('progress', e.target.value)}
+                      rows="3"
+                      placeholder={`Enter progress notes for ${activeStageTab}...`}
+                      value={stageDetails[activeStageTab]?.progress || ''}
+                      onChange={(e) => handleStageFieldChange('progress', e.target.value)}
                       style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
                     />
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>Remark:</label>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '3px' }}>
+                      Remark ({activeStageTab}):
+                    </label>
                     <textarea
-                      rows="2"
-                      placeholder="Enter Remark..."
-                      value={progressMatrix[activeStageTab]?.remark || ''}
-                      onChange={(e) => handleMatrixChange('remark', e.target.value)}
+                      rows="3"
+                      placeholder={`Enter remarks / blockers for ${activeStageTab}...`}
+                      value={stageDetails[activeStageTab]?.remark || ''}
+                      onChange={(e) => handleStageFieldChange('remark', e.target.value)}
                       style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
                     />
                   </div>
@@ -1061,7 +1154,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 {/* Multiple Attachment Links for Current Stage */}
                 <div style={{ marginTop: '12px', borderTop: '1px dashed #cbd5e1', paddingTop: '10px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                    🔗 Attachment Links for Stage {activeStageTab} (Unlimited):
+                    🔗 Attachment Links for Phase {activeStageTab} (Unlimited):
                   </label>
 
                   <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
@@ -1083,7 +1176,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
                   {/* List of Links */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {(progressMatrix[activeStageTab]?.links || []).map((lnk, idx) => (
+                    {(stageDetails[activeStageTab]?.links || []).map((lnk, idx) => (
                       <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
                         <a href={lnk} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: '#2563eb', textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '85%' }}>
                           {lnk}
