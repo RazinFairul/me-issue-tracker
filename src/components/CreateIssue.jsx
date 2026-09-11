@@ -7,6 +7,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [description, setDescription] = useState('');
   const [groupName, setGroupName] = useState('');
   const [location, setLocation] = useState('');
+  const [engineVariant, setEngineVariant] = useState('');
   const [pic, setPic] = useState('');
   const [dateTime, setDateTime] = useState('');
   const [classification, setClassification] = useState('');
@@ -21,6 +22,12 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [isAddingStation, setIsAddingStation] = useState(false);
   const [newStationCode, setNewStationCode] = useState('');
   const [stationLoading, setStationLoading] = useState(false);
+
+  // Dynamic engine variants state from Supabase
+  const [variantList, setVariantList] = useState([]);
+  const [isAddingVariant, setIsAddingVariant] = useState(false);
+  const [newVariantName, setNewVariantName] = useState('');
+  const [variantLoading, setVariantLoading] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -59,6 +66,33 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
 
     fetchStations();
   }, [groupName]);
+
+  // Fetch engine variants from Supabase table on component load
+  useEffect(() => {
+    const fetchVariants = async () => {
+      setVariantLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('engine_variants')
+          .select('variant_name')
+          .order('variant_name', { ascending: true });
+
+        if (!error && data) {
+          const uniqueVariants = Array.from(new Set(data.map((item) => item.variant_name))).sort();
+          setVariantList(uniqueVariants);
+        } else {
+          setVariantList([]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch engine variants:', err);
+        setVariantList([]);
+      } finally {
+        setVariantLoading(false);
+      }
+    };
+
+    fetchVariants();
+  }, []);
 
   // Handle group change
   const handleGroupChange = (e) => {
@@ -135,6 +169,70 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       alert(`Station "${location}" has been deleted successfully.`);
     }
     setStationLoading(false);
+  };
+
+  // Add new engine variant to Supabase (Auto Uppercase)
+  const handleAddNewVariant = async () => {
+    const trimmed = newVariantName.trim().toUpperCase();
+    if (!trimmed) {
+      alert('Please enter an engine variant name.');
+      return;
+    }
+
+    if (variantList.includes(trimmed)) {
+      alert('This engine variant already exists in the list.');
+      return;
+    }
+
+    setVariantLoading(true);
+    const { error } = await supabase.from('engine_variants').insert([
+      { variant_name: trimmed }
+    ]);
+
+    if (error) {
+      alert('Failed to add engine variant: ' + error.message);
+    } else {
+      const updated = [...variantList, trimmed].sort();
+      setVariantList(updated);
+      setEngineVariant(trimmed);
+      setNewVariantName('');
+      setIsAddingVariant(false);
+    }
+    setVariantLoading(false);
+  };
+
+  // Delete engine variant from Supabase
+  const handleDeleteSelectedVariant = async () => {
+    if (!engineVariant) {
+      alert('Please select or type a valid engine variant to delete.');
+      return;
+    }
+
+    if (!variantList.includes(engineVariant)) {
+      alert(`Engine variant "${engineVariant}" does not exist in the database.`);
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete engine variant "${engineVariant}" from the system?`
+    );
+    if (!confirmDelete) return;
+
+    setVariantLoading(true);
+    const { error } = await supabase
+      .from('engine_variants')
+      .delete()
+      .eq('variant_name', engineVariant);
+
+    if (error) {
+      alert('Failed to delete engine variant: ' + error.message);
+    } else {
+      const updated = variantList.filter((v) => v !== engineVariant);
+      setVariantList(updated);
+      setEngineVariant('');
+      alert(`Engine variant "${engineVariant}" has been deleted successfully.`);
+    }
+    setVariantLoading(false);
   };
 
   // Remove selected file attachment
@@ -231,6 +329,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           description: description,
           group_name: groupName,
           location: location,
+          engine_variant: engineVariant || null,
           pic: pic,
           pic_name: pic,
           pic_email: staffEmail,
@@ -350,7 +449,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
-                placeholder="Example: STN700M / STN700-1M / STN700A-C / STN700-1A-C"
+                placeholder="Example: STN700M / STN700-1M / STN700A-C"
                 value={newStationCode}
                 onChange={(e) => setNewStationCode(e.target.value.toUpperCase())}
                 style={{
@@ -381,7 +480,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             </div>
           ) : (
             <div style={{ display: 'flex', gap: '8px' }}>
-              {/* Searchable input with HTML5 datalist */}
               <input
                 list="station-options"
                 required
@@ -412,13 +510,119 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 ))}
               </datalist>
 
-              {/* Show delete button if the typed station exists in database */}
               {location && stationList.includes(location) && (
                 <button
                   type="button"
                   onClick={handleDeleteSelectedStation}
                   title="Delete this station from database"
                   disabled={stationLoading}
+                  style={{
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '5px',
+                    padding: '8px 12px',
+                    fontWeight: 'bold',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  🗑️ Delete
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Engine Variant with Type-to-Search (Datalist) */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+            <label style={{ fontWeight: 'bold' }}>Engine Variant:</label>
+            <button
+              type="button"
+              onClick={() => setIsAddingVariant(!isAddingVariant)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#2563eb',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                textDecoration: 'underline'
+              }}
+            >
+              {isAddingVariant ? '← Back to search' : '+ Add New Variant'}
+            </button>
+          </div>
+
+          {isAddingVariant ? (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                placeholder="Example: 1.5L TGDI / 1.5L MPI"
+                value={newVariantName}
+                onChange={(e) => setNewVariantName(e.target.value.toUpperCase())}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '5px',
+                  border: '1px solid #2563eb',
+                  boxSizing: 'border-box',
+                  textTransform: 'uppercase'
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleAddNewVariant}
+                disabled={variantLoading}
+                style={{
+                  padding: '10px 16px',
+                  backgroundColor: '#2563eb',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '5px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                {variantLoading ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                list="variant-options"
+                value={engineVariant}
+                onChange={(e) => setEngineVariant(e.target.value)}
+                placeholder={
+                  variantLoading
+                    ? 'Loading engine variants...'
+                    : `Type or select engine variant (${variantList.length} available)...`
+                }
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '5px',
+                  border: '1px solid #ccc',
+                  boxSizing: 'border-box',
+                  backgroundColor: '#fff',
+                  color: '#000'
+                }}
+              />
+
+              <datalist id="variant-options">
+                {variantList.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+
+              {engineVariant && variantList.includes(engineVariant) && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelectedVariant}
+                  title="Delete this engine variant from database"
+                  disabled={variantLoading}
                   style={{
                     backgroundColor: '#fee2e2',
                     color: '#dc2626',
@@ -482,8 +686,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             }}
           >
             <option value="" disabled hidden>Choose Issue Classification</option>
-            <option value="A" style={{ color: '#000' }}>Class A - Safety / Quality Issue / Government Issue / Without Temperory Countermeasure</option>
-            <option value="B" style={{ color: '#000' }}>Class B - Cause to Breakdown / Downtime Production / With Temperory Countermeasure</option>
+            <option value="A" style={{ color: '#000' }}>Class A - Safety / Quality Issue / Government Issue / Without Temporary Countermeasure</option>
+            <option value="B" style={{ color: '#000' }}>Class B - Cause to Breakdown / Downtime Production / With Temporary Countermeasure</option>
             <option value="C" style={{ color: '#000' }}>Class C - Minor Issue / Improvement</option>
           </select>
         </div>
