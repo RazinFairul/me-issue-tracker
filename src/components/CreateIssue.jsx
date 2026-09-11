@@ -17,17 +17,19 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
 
-  // Dynamic stations state from Supabase
+  // Dynamic stations state
   const [stationList, setStationList] = useState([]);
   const [isAddingStation, setIsAddingStation] = useState(false);
   const [newStationCode, setNewStationCode] = useState('');
   const [stationLoading, setStationLoading] = useState(false);
+  const [isSearchStation, setIsSearchStation] = useState(false);
 
-  // Dynamic engine variants state from Supabase
+  // Dynamic engine variants state
   const [variantList, setVariantList] = useState([]);
   const [isAddingVariant, setIsAddingVariant] = useState(false);
   const [newVariantName, setNewVariantName] = useState('');
   const [variantLoading, setVariantLoading] = useState(false);
+  const [isSearchVariant, setIsSearchVariant] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -67,7 +69,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     fetchStations();
   }, [groupName]);
 
-  // Fetch engine variants from Supabase table on component load
+  // Fetch engine variants from Supabase table on load
   useEffect(() => {
     const fetchVariants = async () => {
       setVariantLoading(true);
@@ -102,7 +104,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     setIsAddingStation(false);
   };
 
-  // Add new station to Supabase (Auto Uppercase)
+  // Add new station to Supabase
   const handleAddNewStation = async () => {
     const trimmed = newStationCode.trim().toUpperCase();
     if (!trimmed) {
@@ -171,7 +173,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     setStationLoading(false);
   };
 
-  // Add new engine variant to Supabase (Auto Uppercase)
+  // Add new engine variant to Supabase
   const handleAddNewVariant = async () => {
     const trimmed = newVariantName.trim().toUpperCase();
     if (!trimmed) {
@@ -396,7 +398,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           />
         </div>
 
-        {/* Group (Dropdown) */}
+        {/* Group Dropdown: 7DCT & EDU & DHT */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Group:</label>
           <select
@@ -417,39 +419,62 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             <option value="" disabled hidden>Choose Group</option>
             <option value="Assembly Line" style={{ color: '#000' }}>Assembly Line</option>
             <option value="Test Line" style={{ color: '#000' }}>Test Line</option>
-            <option value="Transmission Line" style={{ color: '#000' }}>Transmission Line</option>
+            <option value="7DCT" style={{ color: '#000' }}>7DCT</option>
+            <option value="EDU & DHT" style={{ color: '#000' }}>EDU & DHT</option>
             <option value="IT" style={{ color: '#000' }}>IT (All Stations)</option>
           </select>
         </div>
 
-        {/* Location / Station (Optional) */}
+        {/* Station (Mobile Friendly + Search Mode) */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-            <label style={{ fontWeight: 'bold' }}>Station :</label>
-            {groupName && (
-              <button
-                type="button"
-                onClick={() => setIsAddingStation(!isAddingStation)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#2563eb',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 'bold',
-                  textDecoration: 'underline'
-                }}
-              >
-                {isAddingStation ? '← Back to search' : '+ Add New Station'}
-              </button>
-            )}
+            <label style={{ fontWeight: 'bold' }}>Station (Optional):</label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {groupName && !isAddingStation && (
+                <button
+                  type="button"
+                  onClick={() => setIsSearchStation(!isSearchStation)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#0d3b66',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {isSearchStation ? '📋 Dropdown Mode' : '🔍 Search Mode'}
+                </button>
+              )}
+              {groupName && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingStation(!isAddingStation);
+                    setIsSearchStation(false);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#2563eb',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {isAddingStation ? '← Cancel' : '+ Add Station'}
+                </button>
+              )}
+            </div>
           </div>
 
           {isAddingStation ? (
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
-                placeholder="Example: STN700M / STN700-1M / STN700A-C"
+                placeholder="Example: STN700M / STN700A-C"
                 value={newStationCode}
                 onChange={(e) => setNewStationCode(e.target.value.toUpperCase())}
                 style={{
@@ -478,7 +503,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 {stationLoading ? 'Saving...' : 'Save'}
               </button>
             </div>
-          ) : (
+          ) : isSearchStation ? (
+            /* Search / Datalist input */
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 list="station-options"
@@ -488,9 +514,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 placeholder={
                   !groupName
                     ? 'Please select Group first'
-                    : stationLoading
-                    ? 'Loading stations...'
-                    : `Type or select station (${stationList.length} available)...`
+                    : `Type to search (${stationList.length} stations)...`
                 }
                 style={{
                   flex: 1,
@@ -502,18 +526,67 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                   color: '#000'
                 }}
               />
-
               <datalist id="station-options">
                 {stationList.map((stn) => (
                   <option key={stn} value={stn} />
                 ))}
               </datalist>
-
               {location && stationList.includes(location) && (
                 <button
                   type="button"
                   onClick={handleDeleteSelectedStation}
-                  title="Delete this station from database"
+                  disabled={stationLoading}
+                  style={{
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '5px',
+                    padding: '8px 12px',
+                    fontWeight: 'bold',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  🗑️
+                </button>
+              )}
+            </div>
+          ) : (
+            /* Standard Native Dropdown (Mobile 100% Compatible) */
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                disabled={!groupName || stationLoading}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '5px',
+                  border: '1px solid #ccc',
+                  boxSizing: 'border-box',
+                  backgroundColor: !groupName ? '#f8fafc' : '#fff',
+                  color: location ? '#000' : '#888',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="">
+                  {!groupName
+                    ? 'Please select Group first'
+                    : stationLoading
+                    ? 'Loading stations...'
+                    : `-- Select Station (${stationList.length} available) --`}
+                </option>
+                {stationList.map((stn) => (
+                  <option key={stn} value={stn} style={{ color: '#000' }}>
+                    {stn}
+                  </option>
+                ))}
+              </select>
+              {location && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelectedStation}
                   disabled={stationLoading}
                   style={{
                     backgroundColor: '#fee2e2',
@@ -534,25 +607,47 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           )}
         </div>
 
-        {/* Engine Variant (Optional) */}
+        {/* Engine Variant (Mobile Friendly + Search Mode) */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-            <label style={{ fontWeight: 'bold' }}>Engine Variant:</label>
-            <button
-              type="button"
-              onClick={() => setIsAddingVariant(!isAddingVariant)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#2563eb',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 'bold',
-                textDecoration: 'underline'
-              }}
-            >
-              {isAddingVariant ? '← Back to search' : '+ Add New Variant'}
-            </button>
+            <label style={{ fontWeight: 'bold' }}>Engine Variant (Optional):</label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {!isAddingVariant && (
+                <button
+                  type="button"
+                  onClick={() => setIsSearchVariant(!isSearchVariant)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#0d3b66',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {isSearchVariant ? '📋 Dropdown Mode' : '🔍 Search Mode'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingVariant(!isAddingVariant);
+                  setIsSearchVariant(false);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#2563eb',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  textDecoration: 'underline'
+                }}
+              >
+                {isAddingVariant ? '← Cancel' : '+ Add Variant'}
+              </button>
+            </div>
           </div>
 
           {isAddingVariant ? (
@@ -588,17 +683,14 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 {variantLoading ? 'Saving...' : 'Save'}
               </button>
             </div>
-          ) : (
+          ) : isSearchVariant ? (
+            /* Search / Datalist input */
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 list="variant-options"
                 value={engineVariant}
                 onChange={(e) => setEngineVariant(e.target.value)}
-                placeholder={
-                  variantLoading
-                    ? 'Loading engine variants...'
-                    : `Type or select engine variant (${variantList.length} available)...`
-                }
+                placeholder={`Type to search (${variantList.length} variants)...`}
                 style={{
                   flex: 1,
                   padding: '10px',
@@ -609,18 +701,65 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                   color: '#000'
                 }}
               />
-
               <datalist id="variant-options">
                 {variantList.map((v) => (
                   <option key={v} value={v} />
                 ))}
               </datalist>
-
               {engineVariant && variantList.includes(engineVariant) && (
                 <button
                   type="button"
                   onClick={handleDeleteSelectedVariant}
-                  title="Delete this engine variant from database"
+                  disabled={variantLoading}
+                  style={{
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '5px',
+                    padding: '8px 12px',
+                    fontWeight: 'bold',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  🗑️
+                </button>
+              )}
+            </div>
+          ) : (
+            /* Standard Native Dropdown (Mobile 100% Compatible) */
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select
+                value={engineVariant}
+                onChange={(e) => setEngineVariant(e.target.value)}
+                disabled={variantLoading}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '5px',
+                  border: '1px solid #ccc',
+                  boxSizing: 'border-box',
+                  backgroundColor: '#fff',
+                  color: engineVariant ? '#000' : '#888',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="">
+                  {variantLoading
+                    ? 'Loading engine variants...'
+                    : `-- Select Engine Variant (${variantList.length} available) --`}
+                </option>
+                {variantList.map((v) => (
+                  <option key={v} value={v} style={{ color: '#000' }}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+              {engineVariant && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelectedVariant}
                   disabled={variantLoading}
                   style={{
                     backgroundColor: '#fee2e2',
