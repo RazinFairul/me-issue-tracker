@@ -32,26 +32,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [openVariantMenu, setOpenVariantMenu] = useState(false);
 
   const fileInputRef = useRef(null);
-  const stationRef = useRef(null);
-  const variantRef = useRef(null);
-
-  // Tutup menu dropdown bila klik/tap di luar kawasan
-  useEffect(() => {
-    const handleOutsideInteraction = (e) => {
-      if (stationRef.current && !stationRef.current.contains(e.target)) {
-        setOpenStationMenu(false);
-      }
-      if (variantRef.current && !variantRef.current.contains(e.target)) {
-        setOpenVariantMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideInteraction);
-    document.addEventListener('touchstart', handleOutsideInteraction);
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideInteraction);
-      document.removeEventListener('touchstart', handleOutsideInteraction);
-    };
-  }, []);
 
   // Fetch stations from Supabase table based on selected Group
   useEffect(() => {
@@ -391,7 +371,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     }
   };
 
-  // Tapis senarai berdasarkan taipan
+  // Tapis senarai berdasarkan input
   const filteredStations = stationList.filter((s) =>
     s.toLowerCase().includes(location.toLowerCase())
   );
@@ -459,8 +439,15 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Station (Dropdown Menu Persis PC di Semua Fon) */}
-        <div ref={stationRef} style={{ position: 'relative' }}>
+        {/* Station (iOS & Android 100% Fixed Dropdown) */}
+        <div style={{ position: 'relative' }}>
+          {openStationMenu && (
+            <div 
+              style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+              onPointerDown={() => setOpenStationMenu(false)}
+            />
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Station (Optional):</label>
             {groupName && (
@@ -521,14 +508,18 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           ) : (
             <div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <div style={{ position: 'relative', flex: 1 }}>
+                <div style={{ position: 'relative', flex: 1, zIndex: 9999 }}>
                   <input
                     type="text"
+                    autoComplete="off"
                     value={location}
                     disabled={!groupName || stationLoading}
                     onChange={(e) => {
                       setLocation(e.target.value);
                       setOpenStationMenu(true);
+                    }}
+                    onFocus={() => {
+                      if (groupName) setOpenStationMenu(true);
                     }}
                     onClick={() => {
                       if (groupName) setOpenStationMenu(true);
@@ -551,11 +542,13 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                       fontSize: '14px'
                     }}
                   />
-                  {/* Butang anak panah dropdown ▼ */}
                   <button
                     type="button"
                     disabled={!groupName || stationLoading}
-                    onClick={() => setOpenStationMenu(!openStationMenu)}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      setOpenStationMenu(!openStationMenu);
+                    }}
                     style={{
                       position: 'absolute',
                       right: 0,
@@ -599,7 +592,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 )}
               </div>
 
-              {/* Senarai Dropdown Putih Melayang (Sebiji seperti di PC) */}
+              {/* Senarai Dropdown Yang Berfungsi Pada Safari iOS & Android */}
               {openStationMenu && groupName && (
                 <div
                   style={{
@@ -613,7 +606,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                     maxHeight: '230px',
                     overflowY: 'auto',
                     WebkitOverflowScrolling: 'touch',
-                    zIndex: 9999,
+                    zIndex: 10000,
                     boxShadow: '0 8px 18px rgba(0, 0, 0, 0.15)',
                     marginTop: '4px'
                   }}
@@ -624,12 +617,13 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                       return (
                         <div
                           key={stn}
-                          onClick={() => {
+                          onPointerDown={(e) => {
+                            e.preventDefault();
                             setLocation(stn);
                             setOpenStationMenu(false);
                           }}
                           style={{
-                            padding: '11px 14px',
+                            padding: '12px 14px',
                             cursor: 'pointer',
                             borderBottom: '1px solid #f1f5f9',
                             backgroundColor: isSelected ? '#e0f2fe' : '#ffffff',
@@ -638,7 +632,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                             fontSize: '14px',
                             display: 'flex',
                             justifyContent: 'space-between',
-                            alignItems: 'center'
+                            alignItems: 'center',
+                            WebkitTapHighlightColor: 'rgba(0,0,0,0)'
                           }}
                         >
                           <span>{stn}</span>
@@ -657,8 +652,15 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           )}
         </div>
 
-        {/* Engine Variant (Dropdown Menu Persis PC di Semua Fon) */}
-        <div ref={variantRef} style={{ position: 'relative' }}>
+        {/* Engine Variant (iOS & Android 100% Fixed Dropdown) */}
+        <div style={{ position: 'relative' }}>
+          {openVariantMenu && (
+            <div 
+              style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+              onPointerDown={() => setOpenVariantMenu(false)}
+            />
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Engine Variant (Optional):</label>
             <button
@@ -717,15 +719,17 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           ) : (
             <div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <div style={{ position: 'relative', flex: 1 }}>
+                <div style={{ position: 'relative', flex: 1, zIndex: 9999 }}>
                   <input
                     type="text"
+                    autoComplete="off"
                     value={engineVariant}
                     disabled={variantLoading}
                     onChange={(e) => {
                       setEngineVariant(e.target.value);
                       setOpenVariantMenu(true);
                     }}
+                    onFocus={() => setOpenVariantMenu(true)}
                     onClick={() => setOpenVariantMenu(true)}
                     placeholder={
                       variantLoading
@@ -743,11 +747,13 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                       fontSize: '14px'
                     }}
                   />
-                  {/* Butang anak panah dropdown ▼ */}
                   <button
                     type="button"
                     disabled={variantLoading}
-                    onClick={() => setOpenVariantMenu(!openVariantMenu)}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      setOpenVariantMenu(!openVariantMenu);
+                    }}
                     style={{
                       position: 'absolute',
                       right: 0,
@@ -791,7 +797,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 )}
               </div>
 
-              {/* Senarai Dropdown Putih Melayang Engine Variant */}
+              {/* Senarai Dropdown Engine Variant */}
               {openVariantMenu && (
                 <div
                   style={{
@@ -805,7 +811,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                     maxHeight: '230px',
                     overflowY: 'auto',
                     WebkitOverflowScrolling: 'touch',
-                    zIndex: 9999,
+                    zIndex: 10000,
                     boxShadow: '0 8px 18px rgba(0, 0, 0, 0.15)',
                     marginTop: '4px'
                   }}
@@ -816,12 +822,13 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                       return (
                         <div
                           key={v}
-                          onClick={() => {
+                          onPointerDown={(e) => {
+                            e.preventDefault();
                             setEngineVariant(v);
                             setOpenVariantMenu(false);
                           }}
                           style={{
-                            padding: '11px 14px',
+                            padding: '12px 14px',
                             cursor: 'pointer',
                             borderBottom: '1px solid #f1f5f9',
                             backgroundColor: isSelected ? '#e0f2fe' : '#ffffff',
@@ -830,7 +837,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                             fontSize: '14px',
                             display: 'flex',
                             justifyContent: 'space-between',
-                            alignItems: 'center'
+                            alignItems: 'center',
+                            WebkitTapHighlightColor: 'rgba(0,0,0,0)'
                           }}
                         >
                           <span>{v}</span>
