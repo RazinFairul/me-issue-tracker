@@ -22,14 +22,12 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [isAddingStation, setIsAddingStation] = useState(false);
   const [newStationCode, setNewStationCode] = useState('');
   const [stationLoading, setStationLoading] = useState(false);
-  const [openStationMenu, setOpenStationMenu] = useState(false);
 
   // Dynamic engine variants state
   const [variantList, setVariantList] = useState([]);
   const [isAddingVariant, setIsAddingVariant] = useState(false);
   const [newVariantName, setNewVariantName] = useState('');
   const [variantLoading, setVariantLoading] = useState(false);
-  const [openVariantMenu, setOpenVariantMenu] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -102,7 +100,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     setGroupName(selectedGroup);
     setLocation('');
     setIsAddingStation(false);
-    setOpenStationMenu(false);
   };
 
   // Add new station to Supabase
@@ -133,7 +130,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       setLocation(trimmed);
       setNewStationCode('');
       setIsAddingStation(false);
-      setOpenStationMenu(false);
     }
     setStationLoading(false);
   };
@@ -141,7 +137,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   // Delete station from Supabase
   const handleDeleteSelectedStation = async () => {
     if (!location) {
-      alert('Please select or type a valid station to delete.');
+      alert('Please select a station to delete.');
       return;
     }
 
@@ -170,7 +166,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       const updated = stationList.filter((s) => s !== location);
       setStationList(updated);
       setLocation('');
-      setOpenStationMenu(false);
       alert(`Station "${location}" has been deleted successfully.`);
     }
     setStationLoading(false);
@@ -202,7 +197,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       setEngineVariant(trimmed);
       setNewVariantName('');
       setIsAddingVariant(false);
-      setOpenVariantMenu(false);
     }
     setVariantLoading(false);
   };
@@ -236,7 +230,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       const updated = variantList.filter((v) => v !== engineVariant);
       setVariantList(updated);
       setEngineVariant('');
-      setOpenVariantMenu(false);
       alert(`Engine variant "${engineVariant}" has been deleted successfully.`);
     }
     setVariantLoading(false);
@@ -371,15 +364,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     }
   };
 
-  // Tapis senarai berdasarkan input
-  const filteredStations = stationList.filter((s) =>
-    s.toLowerCase().includes(location.toLowerCase())
-  );
-
-  const filteredVariants = variantList.filter((v) =>
-    v.toLowerCase().includes(engineVariant.toLowerCase())
-  );
-
   return (
     <div style={{ padding: '10px 20px 30px', maxWidth: '600px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
       <h2 style={{ color: '#0d3b66', marginTop: '0', marginBottom: '20px' }}>Open Issue</h2>
@@ -427,7 +411,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
               boxSizing: 'border-box',
               backgroundColor: '#fff',
               cursor: 'pointer',
-              color: groupName ? '#000' : '#888'
+              color: groupName ? '#000' : '#888',
+              fontSize: '16px' // 16px menghalang iOS daripada auto-zoom
             }}
           >
             <option value="" disabled hidden>Choose Group</option>
@@ -439,24 +424,14 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Station (iOS & Android 100% Fixed Dropdown) */}
-        <div style={{ position: 'relative' }}>
-          {openStationMenu && (
-            <div 
-              style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
-              onPointerDown={() => setOpenStationMenu(false)}
-            />
-          )}
-
+        {/* Station Dropdown Native (100% iOS Edge & Safari Compatible) */}
+        <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Station (Optional):</label>
             {groupName && (
               <button
                 type="button"
-                onClick={() => {
-                  setIsAddingStation(!isAddingStation);
-                  setOpenStationMenu(false);
-                }}
+                onClick={() => setIsAddingStation(!isAddingStation)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -485,7 +460,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                   borderRadius: '5px',
                   border: '1px solid #2563eb',
                   boxSizing: 'border-box',
-                  textTransform: 'uppercase'
+                  textTransform: 'uppercase',
+                  fontSize: '16px'
                 }}
               />
               <button
@@ -506,169 +482,69 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
               </button>
             </div>
           ) : (
-            <div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <div style={{ position: 'relative', flex: 1, zIndex: 9999 }}>
-                  <input
-                    type="text"
-                    autoComplete="off"
-                    value={location}
-                    disabled={!groupName || stationLoading}
-                    onChange={(e) => {
-                      setLocation(e.target.value);
-                      setOpenStationMenu(true);
-                    }}
-                    onFocus={() => {
-                      if (groupName) setOpenStationMenu(true);
-                    }}
-                    onClick={() => {
-                      if (groupName) setOpenStationMenu(true);
-                    }}
-                    placeholder={
-                      !groupName
-                        ? 'Please select Group first'
-                        : stationLoading
-                        ? 'Loading stations...'
-                        : `Type or select station (${stationList.length} available)...`
-                    }
-                    style={{
-                      width: '100%',
-                      padding: '10px 36px 10px 10px',
-                      borderRadius: '5px',
-                      border: '1px solid #ccc',
-                      boxSizing: 'border-box',
-                      backgroundColor: !groupName ? '#f8fafc' : '#fff',
-                      color: '#000',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    disabled={!groupName || stationLoading}
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      setOpenStationMenu(!openStationMenu);
-                    }}
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: '36px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      color: '#666',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    {openStationMenu ? '▲' : '▼'}
-                  </button>
-                </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select
+                value={location}
+                disabled={!groupName || stationLoading}
+                onChange={(e) => setLocation(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '5px',
+                  border: '1px solid #ccc',
+                  boxSizing: 'border-box',
+                  backgroundColor: !groupName ? '#f8fafc' : '#fff',
+                  color: location ? '#000' : '#888',
+                  fontSize: '16px',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">
+                  {!groupName
+                    ? 'Please select Group first'
+                    : stationLoading
+                    ? 'Loading stations...'
+                    : `-- Select Station (${stationList.length} available) --`}
+                </option>
+                {stationList.map((stn) => (
+                  <option key={stn} value={stn} style={{ color: '#000' }}>
+                    {stn}
+                  </option>
+                ))}
+              </select>
 
-                {location && stationList.includes(location) && (
-                  <button
-                    type="button"
-                    onClick={handleDeleteSelectedStation}
-                    title="Delete this station from database"
-                    disabled={stationLoading}
-                    style={{
-                      backgroundColor: '#fee2e2',
-                      color: '#dc2626',
-                      border: '1px solid #fca5a5',
-                      borderRadius: '5px',
-                      padding: '8px 12px',
-                      fontWeight: 'bold',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    🗑️ Delete
-                  </button>
-                )}
-              </div>
-
-              {/* Senarai Dropdown Yang Berfungsi Pada Safari iOS & Android */}
-              {openStationMenu && groupName && (
-                <div
+              {location && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelectedStation}
+                  title="Delete this station from database"
+                  disabled={stationLoading}
                   style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    maxHeight: '230px',
-                    overflowY: 'auto',
-                    WebkitOverflowScrolling: 'touch',
-                    zIndex: 10000,
-                    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.15)',
-                    marginTop: '4px'
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '5px',
+                    padding: '8px 12px',
+                    fontWeight: 'bold',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  {filteredStations.length > 0 ? (
-                    filteredStations.map((stn) => {
-                      const isSelected = location === stn;
-                      return (
-                        <div
-                          key={stn}
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            setLocation(stn);
-                            setOpenStationMenu(false);
-                          }}
-                          style={{
-                            padding: '12px 14px',
-                            cursor: 'pointer',
-                            borderBottom: '1px solid #f1f5f9',
-                            backgroundColor: isSelected ? '#e0f2fe' : '#ffffff',
-                            fontWeight: isSelected ? 'bold' : 'normal',
-                            color: isSelected ? '#0369a1' : '#0f172a',
-                            fontSize: '14px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            WebkitTapHighlightColor: 'rgba(0,0,0,0)'
-                          }}
-                        >
-                          <span>{stn}</span>
-                          {isSelected && <span style={{ color: '#0284c7' }}>✓</span>}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div style={{ padding: '14px', color: '#64748b', textAlign: 'center', fontSize: '13px' }}>
-                      No matching station found.
-                    </div>
-                  )}
-                </div>
+                  🗑️ Delete
+                </button>
               )}
             </div>
           )}
         </div>
 
-        {/* Engine Variant (iOS & Android 100% Fixed Dropdown) */}
-        <div style={{ position: 'relative' }}>
-          {openVariantMenu && (
-            <div 
-              style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
-              onPointerDown={() => setOpenVariantMenu(false)}
-            />
-          )}
-
+        {/* Engine Variant Dropdown Native (100% iOS Edge & Safari Compatible) */}
+        <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Engine Variant (Optional):</label>
             <button
               type="button"
-              onClick={() => {
-                setIsAddingVariant(!isAddingVariant);
-                setOpenVariantMenu(false);
-              }}
+              onClick={() => setIsAddingVariant(!isAddingVariant)}
               style={{
                 background: 'none',
                 border: 'none',
@@ -696,7 +572,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                   borderRadius: '5px',
                   border: '1px solid #2563eb',
                   boxSizing: 'border-box',
-                  textTransform: 'uppercase'
+                  textTransform: 'uppercase',
+                  fontSize: '16px'
                 }}
               />
               <button
@@ -717,141 +594,55 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
               </button>
             </div>
           ) : (
-            <div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <div style={{ position: 'relative', flex: 1, zIndex: 9999 }}>
-                  <input
-                    type="text"
-                    autoComplete="off"
-                    value={engineVariant}
-                    disabled={variantLoading}
-                    onChange={(e) => {
-                      setEngineVariant(e.target.value);
-                      setOpenVariantMenu(true);
-                    }}
-                    onFocus={() => setOpenVariantMenu(true)}
-                    onClick={() => setOpenVariantMenu(true)}
-                    placeholder={
-                      variantLoading
-                        ? 'Loading engine variants...'
-                        : `Type or select engine variant (${variantList.length} available)...`
-                    }
-                    style={{
-                      width: '100%',
-                      padding: '10px 36px 10px 10px',
-                      borderRadius: '5px',
-                      border: '1px solid #ccc',
-                      boxSizing: 'border-box',
-                      backgroundColor: '#fff',
-                      color: '#000',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    disabled={variantLoading}
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      setOpenVariantMenu(!openVariantMenu);
-                    }}
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: '36px',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      color: '#666',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    {openVariantMenu ? '▲' : '▼'}
-                  </button>
-                </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select
+                value={engineVariant}
+                disabled={variantLoading}
+                onChange={(e) => setEngineVariant(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '5px',
+                  border: '1px solid #ccc',
+                  boxSizing: 'border-box',
+                  backgroundColor: '#fff',
+                  color: engineVariant ? '#000' : '#888',
+                  fontSize: '16px',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">
+                  {variantLoading
+                    ? 'Loading engine variants...'
+                    : `-- Select Engine Variant (${variantList.length} available) --`}
+                </option>
+                {variantList.map((v) => (
+                  <option key={v} value={v} style={{ color: '#000' }}>
+                    {v}
+                  </option>
+                ))}
+              </select>
 
-                {engineVariant && variantList.includes(engineVariant) && (
-                  <button
-                    type="button"
-                    onClick={handleDeleteSelectedVariant}
-                    title="Delete this engine variant from database"
-                    disabled={variantLoading}
-                    style={{
-                      backgroundColor: '#fee2e2',
-                      color: '#dc2626',
-                      border: '1px solid #fca5a5',
-                      borderRadius: '5px',
-                      padding: '8px 12px',
-                      fontWeight: 'bold',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    🗑️ Delete
-                  </button>
-                )}
-              </div>
-
-              {/* Senarai Dropdown Engine Variant */}
-              {openVariantMenu && (
-                <div
+              {engineVariant && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelectedVariant}
+                  title="Delete this engine variant from database"
+                  disabled={variantLoading}
                   style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    maxHeight: '230px',
-                    overflowY: 'auto',
-                    WebkitOverflowScrolling: 'touch',
-                    zIndex: 10000,
-                    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.15)',
-                    marginTop: '4px'
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '5px',
+                    padding: '8px 12px',
+                    fontWeight: 'bold',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  {filteredVariants.length > 0 ? (
-                    filteredVariants.map((v) => {
-                      const isSelected = engineVariant === v;
-                      return (
-                        <div
-                          key={v}
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            setEngineVariant(v);
-                            setOpenVariantMenu(false);
-                          }}
-                          style={{
-                            padding: '12px 14px',
-                            cursor: 'pointer',
-                            borderBottom: '1px solid #f1f5f9',
-                            backgroundColor: isSelected ? '#e0f2fe' : '#ffffff',
-                            fontWeight: isSelected ? 'bold' : 'normal',
-                            color: isSelected ? '#0369a1' : '#0f172a',
-                            fontSize: '14px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            WebkitTapHighlightColor: 'rgba(0,0,0,0)'
-                          }}
-                        >
-                          <span>{v}</span>
-                          {isSelected && <span style={{ color: '#0284c7' }}>✓</span>}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div style={{ padding: '14px', color: '#64748b', textAlign: 'center', fontSize: '13px' }}>
-                      No matching engine variant found.
-                    </div>
-                  )}
-                </div>
+                  🗑️ Delete
+                </button>
               )}
             </div>
           )}
@@ -866,7 +657,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             onChange={(e) => setPic(e.target.value)} 
             required 
             placeholder="Enter Person in Charge"
-            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '16px' }}
           />
         </div>
 
@@ -878,7 +669,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             value={dateTime} 
             onChange={(e) => setDateTime(e.target.value)} 
             required 
-            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '16px' }}
           />
         </div>
 
@@ -897,7 +688,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
               boxSizing: 'border-box', 
               backgroundColor: '#fff', 
               cursor: 'pointer', 
-              color: classification ? '#000' : '#888'
+              color: classification ? '#000' : '#888',
+              fontSize: '16px'
             }}
           >
             <option value="" disabled hidden>Choose Issue Classification</option>
@@ -915,7 +707,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             value={estimatedClosing} 
             onChange={(e) => setEstimatedClosing(e.target.value)} 
             required 
-            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '16px' }}
           />
         </div>
 
@@ -980,7 +772,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             value={onedriveLink} 
             onChange={(e) => setOnedriveLink(e.target.value)} 
             placeholder="Enter Link" 
-            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '16px' }}
           />
           <small style={{ color: '#666', display: 'block', marginTop: '4px' }}>
             *Recommended for large files or videos exceeding standard size (OneDrive, SharePoint, or Google Drive).
