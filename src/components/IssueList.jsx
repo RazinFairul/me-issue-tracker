@@ -2,16 +2,23 @@ import React, { useEffect, useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 
+const DEFAULT_MATRIX = {
+  '1/4': { root_cause: '', countermeasure: '', progress: '', remark: '', links: [] },
+  '2/4': { root_cause: '', countermeasure: '', progress: '', remark: '', links: [] },
+  '3/4': { root_cause: '', countermeasure: '', progress: '', remark: '', links: [] },
+  '4/4': { root_cause: '', countermeasure: '', progress: '', remark: '', links: [] }
+};
+
 export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Dynamic Master Data from Database
+  // Dynamic Master Data
   const [dbStations, setDbStations] = useState([]);
   const [dbVariants, setDbVariants] = useState([]);
 
-  // Filter States - Ordered: Date - Status - Class - Group - Location - Engine Variant - Name
+  // Filters: Date - Status - Class - Group - Location - Engine Variant - Name
   const [searchTerm, setSearchTerm] = useState('');
   const [periodFilter, setPeriodFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -26,10 +33,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [newEstClosingDate, setNewEstClosingDate] = useState('');
   const [savingEstDate, setSavingEstDate] = useState(false);
 
-  // Update Progress & Status Modal
+  // Update Progress Modal State
   const [selectedIssue, setSelectedIssue] = useState(null);
-  const [newStatus, setNewStatus] = useState('In Progress (1/4)');
-  const [progressNote, setProgressNote] = useState('');
+  const [modalStatus, setModalStatus] = useState('In Progress (1/4)');
+  const [progressMatrix, setProgressMatrix] = useState(DEFAULT_MATRIX);
+  const [activeStageTab, setActiveStageTab] = useState('1/4');
+  const [tempLinkInput, setTempLinkInput] = useState('');
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
@@ -40,7 +49,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     getCurrentUser();
   }, []);
 
-  // Fetch Master Data (Stations & Engine Variants) directly from Supabase
   const fetchMasterData = async () => {
     try {
       const [stationsRes, variantsRes] = await Promise.all([
@@ -79,23 +87,18 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     fetchMasterData();
   }, [refreshTrigger]);
 
-  // Handle group change: reset dependent station filter if needed
   const handleGroupFilterChange = (e) => {
-    const selected = e.target.value;
-    setGroupFilter(selected);
+    setGroupFilter(e.target.value);
     setLocationFilter('All');
   };
 
-  // Helper function to calculate week of month (1 - 5)
   const getWeekOfMonth = (dateString) => {
     if (!dateString) return null;
     const dateObj = new Date(dateString);
     if (isNaN(dateObj.getTime())) return null;
-    const dayOfMonth = dateObj.getDate();
-    return String(Math.min(5, Math.ceil(dayOfMonth / 7)));
+    return String(Math.min(5, Math.ceil(dateObj.getDate() / 7)));
   };
 
-  // Generate dynamic Month & Week dropdown options from dataset
   const periodOptions = useMemo(() => {
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
@@ -114,9 +117,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const nowYM = new Date().toISOString().slice(0, 7);
     monthsSet.add(nowYM);
 
-    const sortedMonths = Array.from(monthsSet).sort().reverse();
-
-    return sortedMonths.map((ym) => {
+    return Array.from(monthsSet).sort().reverse().map((ym) => {
       const [year, month] = ym.split('-');
       const monthLabel = `${monthNames[parseInt(month, 10) - 1]} ${year}`;
       return {
@@ -133,7 +134,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     });
   }, [issues]);
 
-  // Dynamic Location Options: Filtered by Selected Group & merges Database + Existing Issues
   const filteredLocationOptions = useMemo(() => {
     let list = [];
     if (groupFilter === 'All' || groupFilter === 'IT') {
@@ -142,7 +142,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       list = dbStations.filter((s) => s.group_name === groupFilter).map((s) => s.station_code);
     }
 
-    // Also include any unique locations found in issues under this group
     issues.forEach((i) => {
       if (i.location) {
         if (groupFilter === 'All' || groupFilter === 'IT' || i.group_name === groupFilter) {
@@ -154,7 +153,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return Array.from(new Set(list.filter(Boolean))).sort();
   }, [dbStations, issues, groupFilter]);
 
-  // Dynamic Engine Variant Options: Database master + any existing in issues
   const uniqueEngineVariants = useMemo(() => {
     const fromIssues = issues.map((i) => i.engine_variant).filter(Boolean);
     return Array.from(new Set([...dbVariants, ...fromIssues])).sort();
@@ -168,30 +166,18 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const confirmDelete = window.confirm(`Are you sure you want to delete "${issue.what_issue || 'this issue'}"?`);
     if (!confirmDelete) return;
 
-    setIssues((prevIssues) => prevIssues.filter((item) => item.id !== issue.id));
+    setIssues((prev) => prev.filter((item) => item.id !== issue.id));
 
-    if (issue.file_url) {
+    if (issue.file_url && issue.file_url.includes('/issue-attachments/')) {
       try {
-        const marker = '/issue-attachments/';
-        if (issue.file_url.includes(marker)) {
-          const fullPath = issue.file_url.split(marker)[1].split('?')[0];
-          const cleanPath = decodeURIComponent(fullPath);
-
-          const { error: storageError } = await supabase.storage
-            .from('issue-attachments')
-            .remove([cleanPath]);
-
-          if (storageError) {
-            console.warn('Storage delete warning:', storageError.message);
-          }
-        }
+        const cleanPath = decodeURIComponent(issue.file_url.split('/issue-attachments/')[1].split('?')[0]);
+        await supabase.storage.from('issue-attachments').remove([cleanPath]);
       } catch (err) {
-        console.warn('Failed to delete file from storage:', err);
+        console.warn('Storage delete warning:', err);
       }
     }
 
     const { error } = await supabase.from('issues').delete().eq('id', issue.id);
-
     if (error) {
       alert('Failed to delete issue: ' + error.message);
       fetchIssues();
@@ -211,19 +197,14 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     const { error } = await supabase
       .from('issues')
-      .update({
-        estimated_closing: newEstClosingDate,
-        updated_at: now,
-      })
+      .update({ estimated_closing: newEstClosingDate, updated_at: now })
       .eq('id', issueId);
 
     if (error) {
       alert('Failed to update Est. Closing date: ' + error.message);
     } else {
       setIssues((prev) =>
-        prev.map((item) =>
-          item.id === issueId ? { ...item, estimated_closing: newEstClosingDate, updated_at: now } : item
-        )
+        prev.map((item) => item.id === issueId ? { ...item, estimated_closing: newEstClosingDate, updated_at: now } : item)
       );
       setEditingEstClosingId(null);
       setNewEstClosingDate('');
@@ -239,17 +220,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     if (datePart && datePart.includes('-')) {
       const [year, month, day] = datePart.split('-');
       let formattedTime = '';
-
       if (timePart) {
-        const timeSegments = timePart.split(':');
-        let hours = parseInt(timeSegments[0], 10);
-        const minutes = timeSegments[1];
-
-        if (!isNaN(hours)) {
-          const ampm = hours >= 12 ? 'PM' : 'AM';
-          hours = hours % 12;
-          hours = hours ? hours : 12;
-          formattedTime = `, ${hours}:${minutes} ${ampm}`;
+        const [h, m] = timePart.split(':');
+        const hour = parseInt(h, 10);
+        if (!isNaN(hour)) {
+          formattedTime = `, ${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
         }
       }
       return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year.slice(-2)}${formattedTime}`;
@@ -259,9 +234,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   const formatDateOnly = (dateStr) => {
     if (!dateStr) return '-';
-    const dateOnlyPart = dateStr.split('T')[0].split(' ')[0];
-    if (dateOnlyPart && dateOnlyPart.includes('-')) {
-      const [year, month, day] = dateOnlyPart.split('-');
+    const clean = dateStr.split('T')[0].split(' ')[0];
+    if (clean && clean.includes('-')) {
+      const [year, month, day] = clean.split('-');
       return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year.slice(-2)}`;
     }
     return dateStr;
@@ -275,9 +250,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         return { icon: '◑', text: 'In Progress (2/4)', bg: '#eab308', color: '#000' };
       case 'In Progress (3/4)':
         return { icon: '◕', text: 'In Progress (3/4)', bg: '#0284c7', color: '#fff' };
-      case 'In Progress':
-        return { icon: '◑', text: 'In Progress (2/4)', bg: '#eab308', color: '#000' };
       case 'Closed':
+      case 'Closed (4/4)':
       case 'Completed':
       case 'Complete':
         return { icon: '⚫', text: 'Closed (4/4)', bg: '#16a34a', color: '#fff' };
@@ -286,16 +260,87 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }
   };
 
-  const handleUpdateProgress = async (e) => {
+  // Open Update Modal and initialise matrix
+  const handleOpenUpdateModal = (issue) => {
+    setSelectedIssue(issue);
+    let cur = issue.status;
+    if (!cur || cur === 'Open') cur = 'In Progress (1/4)';
+    if (cur === 'Completed' || cur === 'Complete' || cur === 'Closed') cur = 'Closed (4/4)';
+    setModalStatus(cur);
+
+    let stage = '1/4';
+    if (cur.includes('2/4')) stage = '2/4';
+    if (cur.includes('3/4')) stage = '3/4';
+    if (cur.includes('4/4')) stage = '4/4';
+    setActiveStageTab(stage);
+
+    const existingMatrix = issue.progress_matrix && typeof issue.progress_matrix === 'object'
+      ? { ...DEFAULT_MATRIX, ...issue.progress_matrix }
+      : {
+          ...DEFAULT_MATRIX,
+          '1/4': { ...DEFAULT_MATRIX['1/4'], progress: issue.progress_note || '' }
+        };
+
+    setProgressMatrix(existingMatrix);
+    setTempLinkInput('');
+  };
+
+  const handleMatrixChange = (field, value) => {
+    setProgressMatrix((prev) => ({
+      ...prev,
+      [activeStageTab]: {
+        ...prev[activeStageTab],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleAddLink = () => {
+    const trimmed = tempLinkInput.trim();
+    if (!trimmed) return;
+    try {
+      new URL(trimmed);
+    } catch (_) {
+      alert('Please enter a valid URL (e.g., https://...)');
+      return;
+    }
+
+    const currentLinks = progressMatrix[activeStageTab]?.links || [];
+    setProgressMatrix((prev) => ({
+      ...prev,
+      [activeStageTab]: {
+        ...prev[activeStageTab],
+        links: [...currentLinks, trimmed]
+      }
+    }));
+    setTempLinkInput('');
+  };
+
+  const handleRemoveLink = (indexToRemove) => {
+    const currentLinks = progressMatrix[activeStageTab]?.links || [];
+    setProgressMatrix((prev) => ({
+      ...prev,
+      [activeStageTab]: {
+        ...prev[activeStageTab],
+        links: currentLinks.filter((_, idx) => idx !== indexToRemove)
+      }
+    }));
+  };
+
+  const handleSaveProgressMatrix = async (e) => {
     e.preventDefault();
     setUpdating(true);
     const now = new Date().toISOString();
 
+    const stageNote = progressMatrix[activeStageTab]?.progress || '';
+    const standardizedStatus = modalStatus === 'Closed' ? 'Closed (4/4)' : modalStatus;
+
     const { error } = await supabase
       .from('issues')
       .update({
-        status: newStatus,
-        progress_note: progressNote,
+        status: standardizedStatus,
+        progress_note: stageNote || selectedIssue.progress_note,
+        progress_matrix: progressMatrix,
         updated_at: now,
       })
       .eq('id', selectedIssue.id);
@@ -303,15 +348,14 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     if (error) {
       alert('Failed to update progress: ' + error.message);
     } else {
-      alert('Progress updated successfully!');
+      alert('Progress table and links updated successfully!');
       setSelectedIssue(null);
-      setProgressNote('');
       fetchIssues();
     }
     setUpdating(false);
   };
 
-  // Filter & Sorting Logic
+  // Filter Logic
   const filteredIssues = issues
     .filter((issue) => {
       const searchLower = searchTerm.toLowerCase();
@@ -323,9 +367,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         (issue.staff_name && issue.staff_name.toLowerCase().includes(searchLower)) ||
         (issue.staff_id && issue.staff_id.toLowerCase().includes(searchLower)) ||
         (issue.location && issue.location.toLowerCase().includes(searchLower)) ||
-        (issue.engine_variant && issue.engine_variant.toLowerCase().includes(searchLower)) ||
-        (issue.pic_name && issue.pic_name.toLowerCase().includes(searchLower)) ||
-        (issue.pic && issue.pic.toLowerCase().includes(searchLower));
+        (issue.engine_variant && issue.engine_variant.toLowerCase().includes(searchLower));
 
       const issueDateRaw = issue.date_time || issue.created_at;
       const estClosingRaw = issue.estimated_closing;
@@ -346,12 +388,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
       let matchesStatus = true;
       if (statusFilter !== 'All') {
-        if (statusFilter === 'Closed') {
-          matchesStatus = issue.status === 'Closed' || issue.status === 'Completed' || issue.status === 'Complete';
-        } else if (statusFilter === 'In Progress') {
-          matchesStatus = Boolean(issue.status && issue.status.includes('In Progress')) || issue.status === 'Open' || !issue.status;
+        if (statusFilter === 'Closed (4/4)') {
+          matchesStatus = issue.status === 'Closed' || issue.status === 'Closed (4/4)' || issue.status === 'Completed' || issue.status === 'Complete';
         } else {
-          matchesStatus = issue.status === statusFilter;
+          matchesStatus = issue.status === statusFilter || (!issue.status && statusFilter === 'In Progress (1/4)');
         }
       }
 
@@ -401,13 +441,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const currentPeriodLabel = useMemo(() => {
     if (periodFilter === 'All') return 'All_Period';
     for (const opt of periodOptions) {
-      if (opt.key === periodFilter) {
-        return opt.label.replace(/\s+/g, '_');
-      }
+      if (opt.key === periodFilter) return opt.label.replace(/\s+/g, '_');
       for (const w of opt.weeks) {
-        if (w.value === periodFilter) {
-          return w.label.replace(/[^a-zA-Z0-9]/g, '_');
-        }
+        if (w.value === periodFilter) return w.label.replace(/[^a-zA-Z0-9]/g, '_');
       }
     }
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
@@ -420,78 +456,46 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       return;
     }
 
-    const getHarveyBall = (status) => {
-      switch (status) {
-        case 'In Progress (1/4)': return '◔ 1/4';
-        case 'In Progress (2/4)': return '◑ 2/4';
-        case 'In Progress (3/4)': return '◕ 3/4';
-        case 'Closed':
-        case 'Completed':
-        case 'Complete': return '⬤ 4/4';
-        default: return '◔ 1/4';
-      }
-    };
-
     const formattedData = filteredIssues.map((i, index) => {
-      const exportStatus = (!i.status || i.status === 'Open') 
-        ? 'In Progress (1/4)' 
-        : i.status;
-      
+      const exportStatus = (!i.status || i.status === 'Open') ? 'In Progress (1/4)' : i.status;
       const rawDate = i.date_time || i.created_at;
-      const formattedDate = rawDate ? formatDateTime(rawDate) : '-';
-      const formattedEstClosing = i.estimated_closing ? formatDateOnly(i.estimated_closing) : '-';
 
-      const cleanProgressNote = i.progress_note 
-        ? i.progress_note.replace(/(\r\n|\n|\r)/gm, ' ').trim() 
-        : '-';
+      const pMatrix = i.progress_matrix || {};
+      const compileStage = (stage) => {
+        const row = pMatrix[stage];
+        if (!row) return '-';
+        return `[RC: ${row.root_cause || '-'}] [CM: ${row.countermeasure || '-'}] [Prog: ${row.progress || '-'}] [Rem: ${row.remark || '-'}]`;
+      };
 
       return {
         'No.': index + 1,
         'Reported by': i.staff_name || i.staff_id || '-',
-        'Date & Time': formattedDate,
+        'Date & Time': rawDate ? formatDateTime(rawDate) : '-',
         'Issue Classification': i.classification || '-',
-        'Closing Status': getHarveyBall(exportStatus),
+        'Status': exportStatus,
         'Issue': i.what_issue || '-',
         'Issue Description': i.description || '-',
         'Group': i.group_name || '-',
         'Location / Station': i.location || '-',
         'Engine Variant': i.engine_variant || '-',
         'Person in Charge': i.pic_name || i.pic || '-',
-        'Progress': cleanProgressNote,
-        'Estimate Closing Date': formattedEstClosing,
+        'Stage 1/4 Details': compileStage('1/4'),
+        'Stage 2/4 Details': compileStage('2/4'),
+        'Stage 3/4 Details': compileStage('3/4'),
+        'Stage 4/4 Details': compileStage('4/4'),
+        'Estimate Closing Date': i.estimated_closing ? formatDateOnly(i.estimated_closing) : '-',
         'File Attachment URL': i.file_url || '-',
-        'External Attachment Link': i.onedrive_link || '-'
+        'External Link': i.onedrive_link || '-'
       };
     });
 
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
-
-    worksheet['!cols'] = [
-      { wch: 6 },   // No.
-      { wch: 20 },  // Reported by
-      { wch: 22 },  // Date & Time
-      { wch: 18 },  // Issue Classification
-      { wch: 16 },  // Closing Status
-      { wch: 28 },  // Issue
-      { wch: 38 },  // Issue Description
-      { wch: 20 },  // Group
-      { wch: 20 },  // Location / Station
-      { wch: 18 },  // Engine Variant
-      { wch: 22 },  // Person in Charge
-      { wch: 40 },  // Progress
-      { wch: 20 },  // Estimate Closing Date
-      { wch: 45 },  // File Attachment URL
-      { wch: 45 }   // External Attachment Link
-    ];
-
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Issues Report');
 
     const today = new Date().toISOString().slice(0, 10);
     const groupLabel = groupFilter === 'All' ? 'All_Groups' : groupFilter.replace(/\s+/g, '_');
-    const fileName = `Issues_Report_${groupLabel}_${currentPeriodLabel}_${today}.xlsx`;
-
-    XLSX.writeFile(workbook, fileName);
+    XLSX.writeFile(workbook, `Issues_Report_${groupLabel}_${currentPeriodLabel}_${today}.xlsx`);
   };
 
   return (
@@ -517,7 +521,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             gap: '6px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
           }}
-          title="Click to download Excel report based on the active filters."
         >
           📥 Export to Excel 
           {(groupFilter !== 'All' || periodFilter !== 'All') && (
@@ -531,7 +534,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       {/* Search & Filter Section */}
       <div style={{ backgroundColor: '#fff', padding: '16px 18px', borderRadius: '8px', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', marginBottom: '25px' }}>
         
-        {/* Row 1: Main Search */}
+        {/* Row 1: Search */}
         <div style={{ marginBottom: '14px' }}>
           <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '6px' }}>
             🔍 Search
@@ -572,7 +575,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Row 2: Dropdowns Grid in order: date - status - class - group - location - engine variant - name */}
+        {/* Row 2: Strict Order: date - status - class - group - location - engine variant - name */}
         <div 
           style={{ 
             display: 'grid', 
@@ -589,18 +592,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             <select
               value={periodFilter}
               onChange={(e) => setPeriodFilter(e.target.value)}
-              style={{ 
-                width: '100%', 
-                padding: '6px 4px', 
-                borderRadius: '5px', 
-                border: '1px solid #ccc', 
-                fontSize: '11px', 
-                backgroundColor: '#fff', 
-                boxSizing: 'border-box', 
-                cursor: 'pointer',
-                fontWeight: periodFilter !== 'All' ? 'bold' : 'normal',
-                color: periodFilter !== 'All' ? '#0d3b66' : '#333'
-              }}
+              style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
             >
               <option value="All">All Time</option>
               {periodOptions.map((opt) => (
@@ -616,7 +608,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 2. Status */}
+          {/* 2. Status: Full 1/4, 2/4, 3/4, 4/4 */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📌 Status:
@@ -627,8 +619,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
             >
               <option value="All">All Statuses</option>
-              <option value="In Progress">◑ In Progress</option>
-              <option value="Closed">⚫ Closed (4/4)</option>
+              <option value="In Progress (1/4)">◔ In Progress (1/4)</option>
+              <option value="In Progress (2/4)">◑ In Progress (2/4)</option>
+              <option value="In Progress (3/4)">◕ In Progress (3/4)</option>
+              <option value="Closed (4/4)">⚫ Closed (4/4)</option>
             </select>
           </div>
 
@@ -722,13 +716,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         </div>
       </div>
 
-      {/* Issues Display */}
+      {/* Issues Cards */}
       {loading ? (
         <p style={{ textAlign: 'center', padding: '40px' }}>Loading issues...</p>
       ) : filteredIssues.length === 0 ? (
-        <p style={{ textAlign: 'center', padding: '40px' }}>No issues found matching your search or filter criteria.</p>
+        <p style={{ textAlign: 'center', padding: '40px' }}>No issues found matching your filter criteria.</p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '15px' }}>
           {filteredIssues.map((issue) => {
             const statusInfo = getStatusDetails(issue.status);
             const manualDate = issue.date_time || issue.created_at;
@@ -744,6 +738,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               ((issue.user_id && issue.user_id === currentUser.id) ||
                 (issue.user_email && issue.user_email.toLowerCase() === currentUser.email?.toLowerCase()) ||
                 (issue.staff_name && currentUserName && issue.staff_name.trim().toLowerCase() === currentUserName.trim().toLowerCase()));
+
+            const matrix = issue.progress_matrix || {};
 
             return (
               <div
@@ -844,11 +840,35 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       )}
                     </div>
 
-                    {issue.progress_note && (
-                      <div style={{ fontStyle: 'italic', color: '#555', backgroundColor: '#fff9e6', borderLeft: '3px solid #ffc107', padding: '6px 8px', borderRadius: '4px', marginTop: '4px', fontSize: '11px' }}>
-                        💬 <b>Progress:</b> {issue.progress_note}
-                      </div>
-                    )}
+                    {/* Matrix Summary on Card */}
+                    {['1/4', '2/4', '3/4', '4/4'].map((stg) => {
+                      const data = matrix[stg];
+                      if (!data || (!data.progress && !data.root_cause && !data.countermeasure && (!data.links || data.links.length === 0))) return null;
+                      return (
+                        <div key={stg} style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 8px', borderRadius: '4px', marginTop: '4px', fontSize: '11px' }}>
+                          <span style={{ fontWeight: 'bold', color: '#0369a1' }}>Stage {stg}:</span>
+                          {data.root_cause && <div>• <b>RC:</b> {data.root_cause}</div>}
+                          {data.countermeasure && <div>• <b>CM:</b> {data.countermeasure}</div>}
+                          {data.progress && <div>• <b>Prog:</b> {data.progress}</div>}
+                          {data.remark && <div>• <b>Rem:</b> {data.remark}</div>}
+                          {data.links && data.links.length > 0 && (
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '3px' }}>
+                              {data.links.map((lnk, lIdx) => (
+                                <a
+                                  key={lIdx}
+                                  href={lnk}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ color: '#2563eb', textDecoration: 'underline', fontSize: '10px' }}
+                                >
+                                  🔗 Link {lIdx + 1}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -878,7 +898,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                         rel="noopener noreferrer"
                         style={{ fontSize: '11px', color: '#0d3b66', fontWeight: 'bold', textDecoration: 'none', padding: '4px 8px', border: '1px solid #0d3b66', borderRadius: '4px', backgroundColor: '#fff' }}
                       >
-                        👁️ View
+                        👁️ File
                       </a>
                     )}
 
@@ -887,36 +907,16 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                         href={issue.onedrive_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Open external attachment link"
-                        style={{ 
-                          fontSize: '11px', 
-                          color: '#0d3b66', 
-                          fontWeight: 'bold', 
-                          textDecoration: 'none', 
-                          padding: '4px 8px', 
-                          borderRadius: '4px', 
-                          backgroundColor: '#fff', 
-                          border: '1px solid #0d3b66', 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '4px' 
-                        }}
+                        style={{ fontSize: '11px', color: '#0d3b66', fontWeight: 'bold', textDecoration: 'none', padding: '4px 8px', borderRadius: '4px', backgroundColor: '#fff', border: '1px solid #0d3b66' }}
                       >
-                        📁 Open Attachment ↗
+                        📁 Init Link ↗
                       </a>
                     )}
 
                     {isOwner ? (
                       <>
                         <button
-                          onClick={() => {
-                            setSelectedIssue(issue);
-                            let currentVal = issue.status;
-                            if (!currentVal || currentVal === 'Open') currentVal = 'In Progress (1/4)';
-                            if (currentVal === 'Completed' || currentVal === 'Complete') currentVal = 'Closed';
-                            setNewStatus(currentVal);
-                            setProgressNote(issue.progress_note || '');
-                          }}
+                          onClick={() => handleOpenUpdateModal(issue)}
                           style={{ border: 'none', backgroundColor: '#e9ecef', cursor: 'pointer', padding: '5px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', color: '#333' }}
                         >
                           ✏️ Update
@@ -942,61 +942,190 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         </div>
       )}
 
-      {/* Update Progress & Milestone Modal */}
+      {/* Structured Progress & Multi-Link Table Modal */}
       {selectedIssue && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '90%', maxWidth: '440px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ marginTop: 0, color: '#0d3b66' }}>Update Progress & Closing Status</h3>
-            <p style={{ fontSize: '13px', color: '#666', marginBottom: '15px' }}><b>Issue:</b> {selectedIssue.what_issue}</p>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '15px' }}>
+          <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <h3 style={{ margin: 0, color: '#0d3b66', fontSize: '18px' }}>Update Issue Progress Table</h3>
+              <button
+                type="button"
+                onClick={() => setSelectedIssue(null)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#888' }}
+              >
+                ✕
+              </button>
+            </div>
 
-            <form onSubmit={handleUpdateProgress}>
-              <div style={{ marginBottom: '14px' }}>
+            <p style={{ fontSize: '13px', color: '#555', marginBottom: '15px' }}>
+              <b>Issue:</b> {selectedIssue.what_issue}
+            </p>
+
+            <form onSubmit={handleSaveProgressMatrix}>
+              
+              {/* Status Selector */}
+              <div style={{ marginBottom: '15px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px' }}>
-                  Closing Status (Harvey Ball):
+                  Current Closing Status (Harvey Ball):
                 </label>
                 <select
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value)}
-                  style={{ width: '100%', padding: '9px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '13px', backgroundColor: '#fff' }}
+                  value={modalStatus}
+                  onChange={(e) => setModalStatus(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '13px', backgroundColor: '#fff' }}
                 >
                   <option value="In Progress (1/4)">◔ In Progress (1/4)</option>
                   <option value="In Progress (2/4)">◑ In Progress (2/4)</option>
                   <option value="In Progress (3/4)">◕ In Progress (3/4)</option>
-                  <option value="Closed">⚫ Closed (4/4)</option>
+                  <option value="Closed (4/4)">⚫ Closed (4/4)</option>
                 </select>
               </div>
 
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px' }}>Progress Note / Updates:</label>
-                <textarea
-                  rows="3"
-                  value={progressNote}
-                  onChange={(e) => setProgressNote(e.target.value)}
-                  placeholder="Enter progress notes or updates here..."
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
-                />
+              {/* Stage Tabs (1/4, 2/4, 3/4, 4/4) */}
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '6px' }}>
+                {['1/4', '2/4', '3/4', '4/4'].map((stage) => (
+                  <button
+                    key={stage}
+                    type="button"
+                    onClick={() => setActiveStageTab(stage)}
+                    style={{
+                      padding: '6px 12px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      backgroundColor: activeStageTab === stage ? '#0d3b66' : '#f1f5f9',
+                      color: activeStageTab === stage ? '#fff' : '#475569'
+                    }}
+                  >
+                    Stage {stage}
+                  </button>
+                ))}
               </div>
 
+              {/* Progress Table Inputs for active stage */}
+              <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '12px', marginBottom: '15px', backgroundColor: '#f8fafc' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#0d3b66', display: 'block', marginBottom: '10px' }}>
+                  Details for Stage {activeStageTab}:
+                </span>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>Root Cause:</label>
+                    <textarea
+                      rows="2"
+                      placeholder="Enter Root Cause..."
+                      value={progressMatrix[activeStageTab]?.root_cause || ''}
+                      onChange={(e) => handleMatrixChange('root_cause', e.target.value)}
+                      style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>Countermeasure:</label>
+                    <textarea
+                      rows="2"
+                      placeholder="Enter Countermeasure..."
+                      value={progressMatrix[activeStageTab]?.countermeasure || ''}
+                      onChange={(e) => handleMatrixChange('countermeasure', e.target.value)}
+                      style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>Progress / Action Taken:</label>
+                    <textarea
+                      rows="2"
+                      placeholder="Enter Progress..."
+                      value={progressMatrix[activeStageTab]?.progress || ''}
+                      onChange={(e) => handleMatrixChange('progress', e.target.value)}
+                      style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>Remark:</label>
+                    <textarea
+                      rows="2"
+                      placeholder="Enter Remark..."
+                      value={progressMatrix[activeStageTab]?.remark || ''}
+                      onChange={(e) => handleMatrixChange('remark', e.target.value)}
+                      style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Multiple Attachment Links for Current Stage */}
+                <div style={{ marginTop: '12px', borderTop: '1px dashed #cbd5e1', paddingTop: '10px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
+                    🔗 Attachment Links for Stage {activeStageTab} (Unlimited):
+                  </label>
+
+                  <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                    <input
+                      type="url"
+                      placeholder="Paste link (OneDrive, Google Drive, SharePoint)..."
+                      value={tempLinkInput}
+                      onChange={(e) => setTempLinkInput(e.target.value)}
+                      style={{ flex: 1, padding: '6px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddLink}
+                      style={{ padding: '6px 12px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                      + Add Link
+                    </button>
+                  </div>
+
+                  {/* List of Links */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {(progressMatrix[activeStageTab]?.links || []).map((lnk, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                        <a href={lnk} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: '#2563eb', textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '85%' }}>
+                          {lnk}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLink(idx)}
+                          style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                          title="Remove this link"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Action Buttons */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button
                   type="button"
                   onClick={() => setSelectedIssue(null)}
-                  style={{ padding: '8px 14px', border: 'none', backgroundColor: '#ccc', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                  style={{ padding: '8px 16px', border: 'none', backgroundColor: '#e2e8f0', color: '#333', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={updating}
-                  style={{ padding: '8px 14px', border: 'none', backgroundColor: '#0d3b66', color: '#fff', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                  style={{ padding: '8px 16px', border: 'none', backgroundColor: '#0d3b66', color: '#fff', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
                 >
-                  {updating ? 'Saving...' : 'Update Status'}
+                  {updating ? 'Saving...' : 'Save All Updates'}
                 </button>
               </div>
             </form>
+
           </div>
         </div>
       )}
+
     </div>
   );
 }
