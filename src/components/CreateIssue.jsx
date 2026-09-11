@@ -22,21 +22,36 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [isAddingStation, setIsAddingStation] = useState(false);
   const [newStationCode, setNewStationCode] = useState('');
   const [stationLoading, setStationLoading] = useState(false);
+  const [openStationMenu, setOpenStationMenu] = useState(false);
 
   // Dynamic engine variants state
   const [variantList, setVariantList] = useState([]);
   const [isAddingVariant, setIsAddingVariant] = useState(false);
   const [newVariantName, setNewVariantName] = useState('');
   const [variantLoading, setVariantLoading] = useState(false);
-
-  // Modal Picker States (Untuk rupa Android Dialog pada semua fon)
-  const [openStationModal, setOpenStationModal] = useState(false);
-  const [stationSearchQuery, setStationSearchQuery] = useState('');
-
-  const [openVariantModal, setOpenVariantModal] = useState(false);
-  const [variantSearchQuery, setVariantSearchQuery] = useState('');
+  const [openVariantMenu, setOpenVariantMenu] = useState(false);
 
   const fileInputRef = useRef(null);
+  const stationRef = useRef(null);
+  const variantRef = useRef(null);
+
+  // Tutup menu dropdown bila klik/tap di luar kawasan
+  useEffect(() => {
+    const handleOutsideInteraction = (e) => {
+      if (stationRef.current && !stationRef.current.contains(e.target)) {
+        setOpenStationMenu(false);
+      }
+      if (variantRef.current && !variantRef.current.contains(e.target)) {
+        setOpenVariantMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideInteraction);
+    document.addEventListener('touchstart', handleOutsideInteraction);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideInteraction);
+      document.removeEventListener('touchstart', handleOutsideInteraction);
+    };
+  }, []);
 
   // Fetch stations from Supabase table based on selected Group
   useEffect(() => {
@@ -107,6 +122,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     setGroupName(selectedGroup);
     setLocation('');
     setIsAddingStation(false);
+    setOpenStationMenu(false);
   };
 
   // Add new station to Supabase
@@ -137,6 +153,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       setLocation(trimmed);
       setNewStationCode('');
       setIsAddingStation(false);
+      setOpenStationMenu(false);
     }
     setStationLoading(false);
   };
@@ -144,7 +161,12 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   // Delete station from Supabase
   const handleDeleteSelectedStation = async () => {
     if (!location) {
-      alert('Please select a station to delete.');
+      alert('Please select or type a valid station to delete.');
+      return;
+    }
+
+    if (!stationList.includes(location)) {
+      alert(`Station "${location}" does not exist in the database.`);
       return;
     }
 
@@ -168,6 +190,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       const updated = stationList.filter((s) => s !== location);
       setStationList(updated);
       setLocation('');
+      setOpenStationMenu(false);
       alert(`Station "${location}" has been deleted successfully.`);
     }
     setStationLoading(false);
@@ -199,6 +222,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       setEngineVariant(trimmed);
       setNewVariantName('');
       setIsAddingVariant(false);
+      setOpenVariantMenu(false);
     }
     setVariantLoading(false);
   };
@@ -207,6 +231,11 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const handleDeleteSelectedVariant = async () => {
     if (!engineVariant) {
       alert('Please select an engine variant to delete.');
+      return;
+    }
+
+    if (!variantList.includes(engineVariant)) {
+      alert(`Engine variant "${engineVariant}" does not exist in the database.`);
       return;
     }
 
@@ -227,6 +256,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       const updated = variantList.filter((v) => v !== engineVariant);
       setVariantList(updated);
       setEngineVariant('');
+      setOpenVariantMenu(false);
       alert(`Engine variant "${engineVariant}" has been deleted successfully.`);
     }
     setVariantLoading(false);
@@ -361,13 +391,13 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     }
   };
 
-  // Tapis senarai mengikut carian dalam modal
-  const filteredModalStations = stationList.filter((s) =>
-    s.toLowerCase().includes(stationSearchQuery.toLowerCase())
+  // Tapis senarai berdasarkan taipan
+  const filteredStations = stationList.filter((s) =>
+    s.toLowerCase().includes(location.toLowerCase())
   );
 
-  const filteredModalVariants = variantList.filter((v) =>
-    v.toLowerCase().includes(variantSearchQuery.toLowerCase())
+  const filteredVariants = variantList.filter((v) =>
+    v.toLowerCase().includes(engineVariant.toLowerCase())
   );
 
   return (
@@ -429,14 +459,17 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Station (Modal Radio Picker) */}
-        <div>
+        {/* Station (Dropdown Menu Persis PC di Semua Fon) */}
+        <div ref={stationRef} style={{ position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Station (Optional):</label>
             {groupName && (
               <button
                 type="button"
-                onClick={() => setIsAddingStation(!isAddingStation)}
+                onClick={() => {
+                  setIsAddingStation(!isAddingStation);
+                  setOpenStationMenu(false);
+                }}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -486,73 +519,154 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
               </button>
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {/* Kotak pilihan yang membuka Modal Picker bila disentuh */}
-              <div
-                onClick={() => {
-                  if (groupName) {
-                    setStationSearchQuery('');
-                    setOpenStationModal(true);
-                  }
-                }}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #ccc',
-                  boxSizing: 'border-box',
-                  backgroundColor: !groupName ? '#f8fafc' : '#fff',
-                  color: location ? '#000' : '#888',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: !groupName ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <span>
-                  {location
-                    ? location
-                    : !groupName
-                    ? 'Please select Group first'
-                    : stationLoading
-                    ? 'Loading stations...'
-                    : `-- Select Station (${stationList.length} available) --`}
-                </span>
-                <span style={{ fontSize: '11px', color: '#666' }}>▼</span>
+            <div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    type="text"
+                    value={location}
+                    disabled={!groupName || stationLoading}
+                    onChange={(e) => {
+                      setLocation(e.target.value);
+                      setOpenStationMenu(true);
+                    }}
+                    onClick={() => {
+                      if (groupName) setOpenStationMenu(true);
+                    }}
+                    placeholder={
+                      !groupName
+                        ? 'Please select Group first'
+                        : stationLoading
+                        ? 'Loading stations...'
+                        : `Type or select station (${stationList.length} available)...`
+                    }
+                    style={{
+                      width: '100%',
+                      padding: '10px 36px 10px 10px',
+                      borderRadius: '5px',
+                      border: '1px solid #ccc',
+                      boxSizing: 'border-box',
+                      backgroundColor: !groupName ? '#f8fafc' : '#fff',
+                      color: '#000',
+                      fontSize: '14px'
+                    }}
+                  />
+                  {/* Butang anak panah dropdown ▼ */}
+                  <button
+                    type="button"
+                    disabled={!groupName || stationLoading}
+                    onClick={() => setOpenStationMenu(!openStationMenu)}
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: '36px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: '#666',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {openStationMenu ? '▲' : '▼'}
+                  </button>
+                </div>
+
+                {location && stationList.includes(location) && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteSelectedStation}
+                    title="Delete this station from database"
+                    disabled={stationLoading}
+                    style={{
+                      backgroundColor: '#fee2e2',
+                      color: '#dc2626',
+                      border: '1px solid #fca5a5',
+                      borderRadius: '5px',
+                      padding: '8px 12px',
+                      fontWeight: 'bold',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    🗑️ Delete
+                  </button>
+                )}
               </div>
 
-              {location && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelectedStation}
-                  title="Delete this station from database"
-                  disabled={stationLoading}
+              {/* Senarai Dropdown Putih Melayang (Sebiji seperti di PC) */}
+              {openStationMenu && groupName && (
+                <div
                   style={{
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fca5a5',
-                    borderRadius: '5px',
-                    padding: '8px 12px',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    maxHeight: '230px',
+                    overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    zIndex: 9999,
+                    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.15)',
+                    marginTop: '4px'
                   }}
                 >
-                  🗑️ Delete
-                </button>
+                  {filteredStations.length > 0 ? (
+                    filteredStations.map((stn) => {
+                      const isSelected = location === stn;
+                      return (
+                        <div
+                          key={stn}
+                          onClick={() => {
+                            setLocation(stn);
+                            setOpenStationMenu(false);
+                          }}
+                          style={{
+                            padding: '11px 14px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #f1f5f9',
+                            backgroundColor: isSelected ? '#e0f2fe' : '#ffffff',
+                            fontWeight: isSelected ? 'bold' : 'normal',
+                            color: isSelected ? '#0369a1' : '#0f172a',
+                            fontSize: '14px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <span>{stn}</span>
+                          {isSelected && <span style={{ color: '#0284c7' }}>✓</span>}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div style={{ padding: '14px', color: '#64748b', textAlign: 'center', fontSize: '13px' }}>
+                      No matching station found.
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
         </div>
 
-        {/* Engine Variant (Modal Radio Picker) */}
-        <div>
+        {/* Engine Variant (Dropdown Menu Persis PC di Semua Fon) */}
+        <div ref={variantRef} style={{ position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Engine Variant (Optional):</label>
             <button
               type="button"
-              onClick={() => setIsAddingVariant(!isAddingVariant)}
+              onClick={() => {
+                setIsAddingVariant(!isAddingVariant);
+                setOpenVariantMenu(false);
+              }}
               style={{
                 background: 'none',
                 border: 'none',
@@ -601,56 +715,135 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
               </button>
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <div
-                onClick={() => {
-                  setVariantSearchQuery('');
-                  setOpenVariantModal(true);
-                }}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #ccc',
-                  boxSizing: 'border-box',
-                  backgroundColor: '#fff',
-                  color: engineVariant ? '#000' : '#888',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: 'pointer'
-                }}
-              >
-                <span>
-                  {engineVariant
-                    ? engineVariant
-                    : variantLoading
-                    ? 'Loading engine variants...'
-                    : `-- Select Engine Variant (${variantList.length} available) --`}
-                </span>
-                <span style={{ fontSize: '11px', color: '#666' }}>▼</span>
+            <div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    type="text"
+                    value={engineVariant}
+                    disabled={variantLoading}
+                    onChange={(e) => {
+                      setEngineVariant(e.target.value);
+                      setOpenVariantMenu(true);
+                    }}
+                    onClick={() => setOpenVariantMenu(true)}
+                    placeholder={
+                      variantLoading
+                        ? 'Loading engine variants...'
+                        : `Type or select engine variant (${variantList.length} available)...`
+                    }
+                    style={{
+                      width: '100%',
+                      padding: '10px 36px 10px 10px',
+                      borderRadius: '5px',
+                      border: '1px solid #ccc',
+                      boxSizing: 'border-box',
+                      backgroundColor: '#fff',
+                      color: '#000',
+                      fontSize: '14px'
+                    }}
+                  />
+                  {/* Butang anak panah dropdown ▼ */}
+                  <button
+                    type="button"
+                    disabled={variantLoading}
+                    onClick={() => setOpenVariantMenu(!openVariantMenu)}
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: '36px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: '#666',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {openVariantMenu ? '▲' : '▼'}
+                  </button>
+                </div>
+
+                {engineVariant && variantList.includes(engineVariant) && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteSelectedVariant}
+                    title="Delete this engine variant from database"
+                    disabled={variantLoading}
+                    style={{
+                      backgroundColor: '#fee2e2',
+                      color: '#dc2626',
+                      border: '1px solid #fca5a5',
+                      borderRadius: '5px',
+                      padding: '8px 12px',
+                      fontWeight: 'bold',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    🗑️ Delete
+                  </button>
+                )}
               </div>
 
-              {engineVariant && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelectedVariant}
-                  title="Delete this engine variant from database"
-                  disabled={variantLoading}
+              {/* Senarai Dropdown Putih Melayang Engine Variant */}
+              {openVariantMenu && (
+                <div
                   style={{
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fca5a5',
-                    borderRadius: '5px',
-                    padding: '8px 12px',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    maxHeight: '230px',
+                    overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    zIndex: 9999,
+                    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.15)',
+                    marginTop: '4px'
                   }}
                 >
-                  🗑️ Delete
-                </button>
+                  {filteredVariants.length > 0 ? (
+                    filteredVariants.map((v) => {
+                      const isSelected = engineVariant === v;
+                      return (
+                        <div
+                          key={v}
+                          onClick={() => {
+                            setEngineVariant(v);
+                            setOpenVariantMenu(false);
+                          }}
+                          style={{
+                            padding: '11px 14px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #f1f5f9',
+                            backgroundColor: isSelected ? '#e0f2fe' : '#ffffff',
+                            fontWeight: isSelected ? 'bold' : 'normal',
+                            color: isSelected ? '#0369a1' : '#0f172a',
+                            fontSize: '14px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <span>{v}</span>
+                          {isSelected && <span style={{ color: '#0284c7' }}>✓</span>}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div style={{ padding: '14px', color: '#64748b', textAlign: 'center', fontSize: '13px' }}>
+                      No matching engine variant found.
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -804,238 +997,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           {loading ? 'Submitting...' : compressing ? 'Optimizing Image...' : 'Submit Issue'}
         </button>
       </form>
-
-      {/* ========================================================= */}
-      {/* MODAL PICKER STATION (SAMA DI ANDROID & IOS)             */}
-      {/* ========================================================= */}
-      {openStationModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 99999,
-            padding: '20px'
-          }}
-          onClick={() => setOpenStationModal(false)}
-        >
-          <div
-            style={{
-              backgroundColor: '#1f2430',
-              borderRadius: '16px',
-              width: '100%',
-              maxWidth: '380px',
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-              overflow: 'hidden'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header Modal */}
-            <div style={{ padding: '16px 20px 10px', borderBottom: '1px solid #2d3342' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <span style={{ color: '#fff', fontSize: '17px', fontWeight: 'bold' }}>Select Station</span>
-                <button
-                  type="button"
-                  onClick={() => setOpenStationModal(false)}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '18px', cursor: 'pointer' }}
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Kotak Search di Dalam Modal */}
-              <input
-                type="text"
-                placeholder="🔍 Search station..."
-                value={stationSearchQuery}
-                onChange={(e) => setStationSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #334155',
-                  backgroundColor: '#0f172a',
-                  color: '#fff',
-                  boxSizing: 'border-box',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
-            {/* List Radio Button Beralun */}
-            <div style={{ overflowY: 'auto', flex: 1, padding: '6px 0', WebkitOverflowScrolling: 'touch' }}>
-              {filteredModalStations.length > 0 ? (
-                filteredModalStations.map((stn) => {
-                  const isSelected = location === stn;
-                  return (
-                    <div
-                      key={stn}
-                      onClick={() => {
-                        setLocation(stn);
-                        setOpenStationModal(false);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '14px 20px',
-                        cursor: 'pointer',
-                        borderBottom: '1px solid #2d3342',
-                        backgroundColor: isSelected ? '#283042' : 'transparent'
-                      }}
-                    >
-                      <span style={{ color: '#fff', fontSize: '16px', fontWeight: isSelected ? 'bold' : 'normal' }}>
-                        {stn}
-                      </span>
-                      {/* Radio Circle Bulat sebiji macam Android */}
-                      <div
-                        style={{
-                          width: '20px',
-                          height: '20px',
-                          borderRadius: '50%',
-                          border: isSelected ? '6px solid #6366f1' : '2px solid #64748b',
-                          backgroundColor: isSelected ? '#fff' : 'transparent',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-                  );
-                })
-              ) : (
-                <div style={{ padding: '20px', color: '#94a3b8', textAlign: 'center', fontSize: '14px' }}>
-                  No station found.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* MODAL PICKER ENGINE VARIANT (SAMA DI ANDROID & IOS)      */}
-      {/* ========================================================= */}
-      {openVariantModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 99999,
-            padding: '20px'
-          }}
-          onClick={() => setOpenVariantModal(false)}
-        >
-          <div
-            style={{
-              backgroundColor: '#1f2430',
-              borderRadius: '16px',
-              width: '100%',
-              maxWidth: '380px',
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-              overflow: 'hidden'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header Modal */}
-            <div style={{ padding: '16px 20px 10px', borderBottom: '1px solid #2d3342' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <span style={{ color: '#fff', fontSize: '17px', fontWeight: 'bold' }}>Select Engine Variant</span>
-                <button
-                  type="button"
-                  onClick={() => setOpenVariantModal(false)}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '18px', cursor: 'pointer' }}
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Kotak Search Engine Variant */}
-              <input
-                type="text"
-                placeholder="🔍 Search variant..."
-                value={variantSearchQuery}
-                onChange={(e) => setVariantSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #334155',
-                  backgroundColor: '#0f172a',
-                  color: '#fff',
-                  boxSizing: 'border-box',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
-            {/* List Radio Button Variant */}
-            <div style={{ overflowY: 'auto', flex: 1, padding: '6px 0', WebkitOverflowScrolling: 'touch' }}>
-              {filteredModalVariants.length > 0 ? (
-                filteredModalVariants.map((v) => {
-                  const isSelected = engineVariant === v;
-                  return (
-                    <div
-                      key={v}
-                      onClick={() => {
-                        setEngineVariant(v);
-                        setOpenVariantModal(false);
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '14px 20px',
-                        cursor: 'pointer',
-                        borderBottom: '1px solid #2d3342',
-                        backgroundColor: isSelected ? '#283042' : 'transparent'
-                      }}
-                    >
-                      <span style={{ color: '#fff', fontSize: '16px', fontWeight: isSelected ? 'bold' : 'normal' }}>
-                        {v}
-                      </span>
-                      <div
-                        style={{
-                          width: '20px',
-                          height: '20px',
-                          borderRadius: '50%',
-                          border: isSelected ? '6px solid #6366f1' : '2px solid #64748b',
-                          backgroundColor: isSelected ? '#fff' : 'transparent',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-                  );
-                })
-              ) : (
-                <div style={{ padding: '20px', color: '#94a3b8', textAlign: 'center', fontSize: '14px' }}>
-                  No engine variant found.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
