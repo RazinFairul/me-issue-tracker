@@ -328,8 +328,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           what_issue: whatIssue,
           description: description,
           group_name: groupName,
-          location: location,
-          engine_variant: engineVariant || null,
+          location: location.trim() || null,
+          engine_variant: engineVariant.trim() || null,
           pic: pic,
           pic_name: pic,
           pic_email: staffEmail,
@@ -422,10 +422,10 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Location / Station with Type-to-Search (Datalist) */}
+        {/* Location / Station (Optional) */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-            <label style={{ fontWeight: 'bold' }}>Location / Station:</label>
+            <label style={{ fontWeight: 'bold' }}>Station :</label>
             {groupName && (
               <button
                 type="button"
@@ -482,7 +482,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 list="station-options"
-                required
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 disabled={!groupName || stationLoading}
@@ -535,7 +534,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           )}
         </div>
 
-        {/* Engine Variant with Type-to-Search (Datalist) */}
+        {/* Engine Variant (Optional) */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Engine Variant:</label>
@@ -560,7 +559,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
-                placeholder="Example: 1.5L TGDI / 1.5L MPI"
+                placeholder="Example: CFN-000 / AFD-A09"
                 value={newVariantName}
                 onChange={(e) => setNewVariantName(e.target.value.toUpperCase())}
                 style={{
@@ -758,7 +757,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         {/* Attachment Link */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-            Attachment Link (Optional):
+            Attachment Link:
           </label>
           <input 
             type="url" 
