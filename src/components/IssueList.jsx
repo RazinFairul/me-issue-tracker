@@ -7,15 +7,19 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Filter States - Single dynamic Period dropdown (Month & Week)
+  // Dynamic Master Data from Database
+  const [dbStations, setDbStations] = useState([]);
+  const [dbVariants, setDbVariants] = useState([]);
+
+  // Filter States - Ordered: Date - Status - Class - Group - Location - Engine Variant - Name
   const [searchTerm, setSearchTerm] = useState('');
   const [periodFilter, setPeriodFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [classificationFilter, setClassificationFilter] = useState('All');
-  const [locationFilter, setLocationFilter] = useState('All');
   const [groupFilter, setGroupFilter] = useState('All');
+  const [locationFilter, setLocationFilter] = useState('All');
+  const [engineVariantFilter, setEngineVariantFilter] = useState('All');
   const [nameFilter, setNameFilter] = useState('All');
-  const [picFilter, setPicFilter] = useState('All');
 
   // Est. Closing Inline Edit
   const [editingEstClosingId, setEditingEstClosingId] = useState(null);
@@ -36,6 +40,25 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     getCurrentUser();
   }, []);
 
+  // Fetch Master Data (Stations & Engine Variants) directly from Supabase
+  const fetchMasterData = async () => {
+    try {
+      const [stationsRes, variantsRes] = await Promise.all([
+        supabase.from('stations').select('station_code, group_name').order('station_code', { ascending: true }),
+        supabase.from('engine_variants').select('variant_name').order('variant_name', { ascending: true })
+      ]);
+
+      if (!stationsRes.error && stationsRes.data) {
+        setDbStations(stationsRes.data);
+      }
+      if (!variantsRes.error && variantsRes.data) {
+        setDbVariants(variantsRes.data.map(v => v.variant_name));
+      }
+    } catch (err) {
+      console.error('Failed to fetch master dropdown data:', err);
+    }
+  };
+
   const fetchIssues = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -53,7 +76,15 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   useEffect(() => {
     fetchIssues();
+    fetchMasterData();
   }, [refreshTrigger]);
+
+  // Handle group change: reset dependent station filter if needed
+  const handleGroupFilterChange = (e) => {
+    const selected = e.target.value;
+    setGroupFilter(selected);
+    setLocationFilter('All');
+  };
 
   // Helper function to calculate week of month (1 - 5)
   const getWeekOfMonth = (dateString) => {
@@ -102,16 +133,35 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     });
   }, [issues]);
 
-  const uniqueLocations = useMemo(() => {
-    return Array.from(new Set(issues.map((i) => i.location).filter(Boolean))).sort();
-  }, [issues]);
+  // Dynamic Location Options: Filtered by Selected Group & merges Database + Existing Issues
+  const filteredLocationOptions = useMemo(() => {
+    let list = [];
+    if (groupFilter === 'All' || groupFilter === 'IT') {
+      list = dbStations.map((s) => s.station_code);
+    } else {
+      list = dbStations.filter((s) => s.group_name === groupFilter).map((s) => s.station_code);
+    }
+
+    // Also include any unique locations found in issues under this group
+    issues.forEach((i) => {
+      if (i.location) {
+        if (groupFilter === 'All' || groupFilter === 'IT' || i.group_name === groupFilter) {
+          list.push(i.location);
+        }
+      }
+    });
+
+    return Array.from(new Set(list.filter(Boolean))).sort();
+  }, [dbStations, issues, groupFilter]);
+
+  // Dynamic Engine Variant Options: Database master + any existing in issues
+  const uniqueEngineVariants = useMemo(() => {
+    const fromIssues = issues.map((i) => i.engine_variant).filter(Boolean);
+    return Array.from(new Set([...dbVariants, ...fromIssues])).sort();
+  }, [dbVariants, issues]);
 
   const uniqueNames = useMemo(() => {
     return Array.from(new Set(issues.map((i) => i.staff_name || i.staff_id).filter(Boolean))).sort();
-  }, [issues]);
-
-  const uniquePICs = useMemo(() => {
-    return Array.from(new Set(issues.map((i) => i.pic_name || i.pic).filter(Boolean))).sort();
   }, [issues]);
 
   const handleDeleteIssue = async (issue) => {
@@ -273,6 +323,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         (issue.staff_name && issue.staff_name.toLowerCase().includes(searchLower)) ||
         (issue.staff_id && issue.staff_id.toLowerCase().includes(searchLower)) ||
         (issue.location && issue.location.toLowerCase().includes(searchLower)) ||
+        (issue.engine_variant && issue.engine_variant.toLowerCase().includes(searchLower)) ||
         (issue.pic_name && issue.pic_name.toLowerCase().includes(searchLower)) ||
         (issue.pic && issue.pic.toLowerCase().includes(searchLower));
 
@@ -309,14 +360,19 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         matchesClassification = issue.classification === classificationFilter;
       }
 
+      let matchesGroup = true;
+      if (groupFilter !== 'All') {
+        matchesGroup = issue.group_name === groupFilter;
+      }
+
       let matchesLocation = true;
       if (locationFilter !== 'All') {
         matchesLocation = issue.location === locationFilter;
       }
 
-      let matchesGroup = true;
-      if (groupFilter !== 'All') {
-        matchesGroup = issue.group_name === groupFilter;
+      let matchesEngineVariant = true;
+      if (engineVariantFilter !== 'All') {
+        matchesEngineVariant = issue.engine_variant === engineVariantFilter;
       }
 
       let matchesName = true;
@@ -325,21 +381,15 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         matchesName = combinedName === nameFilter;
       }
 
-      let matchesPic = true;
-      if (picFilter !== 'All') {
-        const combinedPic = issue.pic_name || issue.pic;
-        matchesPic = combinedPic === picFilter;
-      }
-
       return (
         matchesSearch &&
         matchesPeriod &&
         matchesStatus &&
         matchesClassification &&
-        matchesLocation &&
         matchesGroup &&
-        matchesName &&
-        matchesPic
+        matchesLocation &&
+        matchesEngineVariant &&
+        matchesName
       );
     })
     .sort((a, b) => {
@@ -363,14 +413,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // Export to Native Excel (.xlsx) mengikut susunan tepat yang diminta
+  // Export to Native Excel (.xlsx)
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('No issue data available to export with the current filters.');
       return;
     }
 
-    // Bulatan bersaiz sama besar mengikut keluarga Harvey Ball
     const getHarveyBall = (status) => {
       switch (status) {
         case 'In Progress (1/4)': return '◔ 1/4';
@@ -406,10 +455,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         'Issue Description': i.description || '-',
         'Group': i.group_name || '-',
         'Location / Station': i.location || '-',
+        'Engine Variant': i.engine_variant || '-',
         'Person in Charge': i.pic_name || i.pic || '-',
         'Progress': cleanProgressNote,
         'Estimate Closing Date': formattedEstClosing,
-        'File Attachement URL': i.file_url || '-',
+        'File Attachment URL': i.file_url || '-',
         'External Attachment Link': i.onedrive_link || '-'
       };
     });
@@ -426,10 +476,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       { wch: 38 },  // Issue Description
       { wch: 20 },  // Group
       { wch: 20 },  // Location / Station
+      { wch: 18 },  // Engine Variant
       { wch: 22 },  // Person in Charge
       { wch: 40 },  // Progress
       { wch: 20 },  // Estimate Closing Date
-      { wch: 45 },  // File Attachement URL
+      { wch: 45 },  // File Attachment URL
       { wch: 45 }   // External Attachment Link
     ];
 
@@ -488,7 +539,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <input
               type="text"
-              placeholder="Search.."
+              placeholder="Search by issue, description, station, variant, staff..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
@@ -521,7 +572,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Row 2: Dropdowns Grid */}
+        {/* Row 2: Dropdowns Grid in order: date - status - class - group - location - engine variant - name */}
         <div 
           style={{ 
             display: 'grid', 
@@ -530,10 +581,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             alignItems: 'end'
           }}
         >
-          {/* 1. Period */}
+          {/* 1. Date (Period) */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-              🗓️ Period (Month/Week):
+              🗓️ Period:
             </label>
             <select
               value={periodFilter}
@@ -598,7 +649,26 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 4. Location */}
+          {/* 4. Group */}
+          <div style={{ minWidth: '0' }}>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+              👥 Group:
+            </label>
+            <select
+              value={groupFilter}
+              onChange={handleGroupFilterChange}
+              style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
+            >
+              <option value="All">All Groups</option>
+              <option value="Assembly Line">Assembly Line</option>
+              <option value="Test Line">Test Line</option>
+              <option value="7DCT">7DCT</option>
+              <option value="EDU & DHT">EDU & DHT</option>
+              <option value="IT">IT (All Stations)</option>
+            </select>
+          </div>
+
+          {/* 5. Location (Filtered by Group) */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📍 Location:
@@ -608,32 +678,31 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               onChange={(e) => setLocationFilter(e.target.value)}
               style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
             >
-              <option value="All">All Locations</option>
-              {uniqueLocations.map((loc) => (
+              <option value="All">All Locations ({filteredLocationOptions.length})</option>
+              {filteredLocationOptions.map((loc) => (
                 <option key={loc} value={loc}>{loc}</option>
               ))}
             </select>
           </div>
 
-          {/* 5. Group */}
+          {/* 6. Engine Variant */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-              👥 Group:
+              ⚙️ Engine Variant:
             </label>
             <select
-              value={groupFilter}
-              onChange={(e) => setGroupFilter(e.target.value)}
+              value={engineVariantFilter}
+              onChange={(e) => setEngineVariantFilter(e.target.value)}
               style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
             >
-              <option value="All">All Groups</option>
-              <option value="Assembly Line">Assembly Line</option>
-              <option value="Test Line">Test Line</option>
-              <option value="Transmission Line">Transmission Line</option>
-              <option value="IT">IT</option>
+              <option value="All">All Variants ({uniqueEngineVariants.length})</option>
+              {uniqueEngineVariants.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
             </select>
           </div>
 
-          {/* 6. Name */}
+          {/* 7. Name */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               👤 Name:
@@ -646,23 +715,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               <option value="All">All Names</option>
               {uniqueNames.map((nm) => (
                 <option key={nm} value={nm}>{nm}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* 7. PIC */}
-          <div style={{ minWidth: '0' }}>
-            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-              👤 PIC:
-            </label>
-            <select
-              value={picFilter}
-              onChange={(e) => setPicFilter(e.target.value)}
-              style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
-            >
-              <option value="All">All PICs</option>
-              {uniquePICs.map((p) => (
-                <option key={p} value={p}>{p}</option>
               ))}
             </select>
           </div>
@@ -744,6 +796,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                     <div>👥 <b>Group:</b> {issue.group_name || '-'}</div>
                     <div>👤 <b>Name:</b> {issue.staff_name || issue.staff_id || '-'}</div>
                     <div>📍 <b>Location:</b> {issue.location || '-'}</div>
+                    <div>⚙️ <b>Engine Variant:</b> {issue.engine_variant || '-'}</div>
                     <div>👤 <b>PIC:</b> {issue.pic_name || issue.pic || '-'}</div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
