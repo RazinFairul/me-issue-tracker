@@ -35,7 +35,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const stationContainerRef = useRef(null);
   const variantContainerRef = useRef(null);
 
-  // Tutup dropdown bila user klik di luar kawasan dropdown
+  // Tutup dropdown apabila sentuh di luar kawasan input
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (stationContainerRef.current && !stationContainerRef.current.contains(event.target)) {
@@ -387,12 +387,12 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     }
   };
 
-  // Filter list stesen mengikut apa yang user taip
+  // Filter list stesen
   const filteredStations = stationList.filter((stn) =>
     stn.toLowerCase().includes(location.toLowerCase())
   );
 
-  // Filter list engine variant mengikut apa yang user taip
+  // Filter list engine variant
   const filteredVariants = variantList.filter((v) =>
     v.toLowerCase().includes(engineVariant.toLowerCase())
   );
@@ -429,7 +429,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           />
         </div>
 
-        {/* Group Dropdown: 7DCT & EDU & DHT */}
+        {/* Group Dropdown */}
         <div>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Group:</label>
           <select
@@ -456,7 +456,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Station (Type to Search & Click Dropdown - 100% Mobile Friendly) */}
+        {/* Station (Hybrid: Type to Search + Mobile-Friendly Dropdown List) */}
         <div ref={stationContainerRef} style={{ position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Station (Optional):</label>
@@ -477,7 +477,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                   textDecoration: 'underline'
                 }}
               >
-                {isAddingStation ? '← Back to search' : '+ Add Station'}
+                {isAddingStation ? '← Back to search' : '+ Add New Station'}
               </button>
             )}
           </div>
@@ -539,30 +539,34 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                     }
                     style={{
                       width: '100%',
-                      padding: '10px 35px 10px 10px',
+                      padding: '10px 36px 10px 10px',
                       borderRadius: '5px',
                       border: '1px solid #ccc',
                       boxSizing: 'border-box',
                       backgroundColor: !groupName ? '#f8fafc' : '#fff',
-                      color: '#000'
+                      color: '#000',
+                      fontSize: '14px'
                     }}
                   />
-                  {/* Arrow Icon button to toggle list */}
+                  {/* Butang Toggle Dropdown */}
                   <button
                     type="button"
                     disabled={!groupName || stationLoading}
                     onClick={() => setShowStationDropdown(!showStationDropdown)}
                     style={{
                       position: 'absolute',
-                      right: '8px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
+                      right: '0',
+                      top: '0',
+                      bottom: '0',
+                      width: '36px',
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
                       fontSize: '12px',
                       color: '#666',
-                      padding: '6px'
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
                     }}
                   >
                     {showStationDropdown ? '▲' : '▼'}
@@ -592,7 +596,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 )}
               </div>
 
-              {/* Popup Senarai Dropdown Yang Mesra Telefon & Laptop */}
+              {/* Senarai Popup Dropdown yang boleh diskrol di iOS & Android */}
               {showStationDropdown && groupName && (
                 <div
                   style={{
@@ -605,6 +609,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                     borderRadius: '5px',
                     maxHeight: '220px',
                     overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
                     zIndex: 9999,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                     marginTop: '4px'
@@ -618,25 +623,26 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                           setLocation(stn);
                           setShowStationDropdown(false);
                         }}
-                        onTouchStart={() => {
+                        onTouchEnd={() => {
                           setLocation(stn);
                           setShowStationDropdown(false);
                         }}
                         style={{
-                          padding: '10px 14px',
+                          padding: '12px 14px',
                           cursor: 'pointer',
                           borderBottom: '1px solid #f1f5f9',
                           backgroundColor: location === stn ? '#eff6ff' : '#fff',
                           fontWeight: location === stn ? 'bold' : 'normal',
-                          color: '#0f172a'
+                          color: '#0f172a',
+                          fontSize: '14px'
                         }}
                       >
                         {stn}
                       </div>
                     ))
                   ) : (
-                    <div style={{ padding: '10px', color: '#888', textAlign: 'center', fontSize: '13px' }}>
-                      No station found. You can add it using <b>+ Add Station</b>.
+                    <div style={{ padding: '12px', color: '#888', textAlign: 'center', fontSize: '13px' }}>
+                      No station found. You can add it using <b>+ Add New Station</b>.
                     </div>
                   )}
                 </div>
@@ -645,7 +651,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           )}
         </div>
 
-        {/* Engine Variant (Type to Search & Click Dropdown - 100% Mobile Friendly) */}
+        {/* Engine Variant (Hybrid: Type to Search + Mobile-Friendly Dropdown List) */}
         <div ref={variantContainerRef} style={{ position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Engine Variant (Optional):</label>
@@ -665,7 +671,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 textDecoration: 'underline'
               }}
             >
-              {isAddingVariant ? '← Back to search' : '+ Add Variant'}
+              {isAddingVariant ? '← Back to search' : '+ Add New Variant'}
             </button>
           </div>
 
@@ -722,30 +728,34 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                     }
                     style={{
                       width: '100%',
-                      padding: '10px 35px 10px 10px',
+                      padding: '10px 36px 10px 10px',
                       borderRadius: '5px',
                       border: '1px solid #ccc',
                       boxSizing: 'border-box',
                       backgroundColor: '#fff',
-                      color: '#000'
+                      color: '#000',
+                      fontSize: '14px'
                     }}
                   />
-                  {/* Arrow Icon button to toggle list */}
+                  {/* Butang Toggle Dropdown */}
                   <button
                     type="button"
                     disabled={variantLoading}
                     onClick={() => setShowVariantDropdown(!showVariantDropdown)}
                     style={{
                       position: 'absolute',
-                      right: '8px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
+                      right: '0',
+                      top: '0',
+                      bottom: '0',
+                      width: '36px',
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
                       fontSize: '12px',
                       color: '#666',
-                      padding: '6px'
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
                     }}
                   >
                     {showVariantDropdown ? '▲' : '▼'}
@@ -775,7 +785,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 )}
               </div>
 
-              {/* Popup Dropdown Engine Variant */}
+              {/* Senarai Popup Dropdown Engine Variant */}
               {showVariantDropdown && (
                 <div
                   style={{
@@ -788,6 +798,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                     borderRadius: '5px',
                     maxHeight: '220px',
                     overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch',
                     zIndex: 9999,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                     marginTop: '4px'
@@ -801,25 +812,26 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                           setEngineVariant(v);
                           setShowVariantDropdown(false);
                         }}
-                        onTouchStart={() => {
+                        onTouchEnd={() => {
                           setEngineVariant(v);
                           setShowVariantDropdown(false);
                         }}
                         style={{
-                          padding: '10px 14px',
+                          padding: '12px 14px',
                           cursor: 'pointer',
                           borderBottom: '1px solid #f1f5f9',
                           backgroundColor: engineVariant === v ? '#eff6ff' : '#fff',
                           fontWeight: engineVariant === v ? 'bold' : 'normal',
-                          color: '#0f172a'
+                          color: '#0f172a',
+                          fontSize: '14px'
                         }}
                       >
                         {v}
                       </div>
                     ))
                   ) : (
-                    <div style={{ padding: '10px', color: '#888', textAlign: 'center', fontSize: '13px' }}>
-                      No variant found. You can add it using <b>+ Add Variant</b>.
+                    <div style={{ padding: '12px', color: '#888', textAlign: 'center', fontSize: '13px' }}>
+                      No variant found. You can add it using <b>+ Add New Variant</b>.
                     </div>
                   )}
                 </div>
