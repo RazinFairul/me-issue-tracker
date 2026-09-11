@@ -20,6 +20,27 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('home');
 
+  // Pengesanan Orientasi Dinamik: Potret (Phone/Tablet menegak) vs Landskap (Laptop/PC/Tablet melintang)
+  const checkIsPortrait = () => {
+    return window.innerHeight > window.innerWidth || window.innerWidth <= 768;
+  };
+
+  const [isPortrait, setIsPortrait] = useState(checkIsPortrait());
+
+  useEffect(() => {
+    const handleOrientationOrResize = () => {
+      setIsPortrait(checkIsPortrait());
+    };
+
+    window.addEventListener('resize', handleOrientationOrResize);
+    window.addEventListener('orientationchange', handleOrientationOrResize);
+
+    return () => {
+      window.removeEventListener('resize', handleOrientationOrResize);
+      window.removeEventListener('orientationchange', handleOrientationOrResize);
+    };
+  }, []);
+
   // Detect password recovery mode from email reset links
   const [isRecoveryMode, setIsRecoveryMode] = useState(
     window.location.hash.includes('type=recovery') || window.location.href.includes('type=recovery')
@@ -52,17 +73,14 @@ export default function App() {
       timeoutId = setTimeout(triggerTimeout, TIMEOUT_DURATION_MS);
     };
 
-    // 1. Check if the tab was left inactive for > 5 minutes previously
     const lastActive = localStorage.getItem('me_last_active_time');
     if (lastActive && Date.now() - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS) {
       triggerTimeout();
       return;
     }
 
-    // 2. Start initial timer
     resetTimer();
 
-    // 3. Track intentional user activity (excluding mousemove to prevent false resets)
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
     events.forEach((event) => {
       window.addEventListener(event, resetTimer);
@@ -224,7 +242,6 @@ export default function App() {
     navigateTo('list');
   };
 
-  // Initial Session Loading State
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f4f6f9' }}>
@@ -295,7 +312,7 @@ export default function App() {
     session.user?.user_metadata?.avatar_url;
 
   return (
-    <div className="dashboard-container">
+    <div className={`dashboard-container ${isPortrait ? 'is-portrait' : 'is-landscape'}`}>
       {/* Top Navigation Bar */}
       <div className="top-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
@@ -338,7 +355,7 @@ export default function App() {
 
       {/* Main Content View */}
       {activeTab === 'home' && (
-        <div className="dashboard-grid">
+        <div className={`dashboard-grid ${isPortrait ? 'portrait-layout' : 'landscape-layout'}`}>
           <div className="hero-card">
             <div className="hero-title">
               <h1>Manufacturing Engineering</h1>
