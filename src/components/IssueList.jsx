@@ -933,6 +933,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   </div>
                 </div>
 
+                {/* Bottom Action Section: Cleaned up without redundant Init Link */}
                 <div style={{ borderTop: '1px solid #eee', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                   <span
                     style={{
@@ -960,17 +961,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                         style={{ fontSize: '11px', color: '#0d3b66', fontWeight: 'bold', textDecoration: 'none', padding: '4px 8px', border: '1px solid #0d3b66', borderRadius: '4px', backgroundColor: '#fff' }}
                       >
                         👁️ File
-                      </a>
-                    )}
-
-                    {issue.onedrive_link && (
-                      <a
-                        href={issue.onedrive_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ fontSize: '11px', color: '#0d3b66', fontWeight: 'bold', textDecoration: 'none', padding: '4px 8px', borderRadius: '4px', backgroundColor: '#fff', border: '1px solid #0d3b66' }}
-                      >
-                        📁 Init Link ↗
                       </a>
                     )}
 
@@ -1035,7 +1025,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   onChange={(e) => {
                     const newSt = e.target.value;
                     setModalStatus(newSt);
-                    // If user selects 2/4, automatic tab switch to 2/4
                     if (newSt.includes('2/4')) setActiveStageTab('2/4');
                     else if (newSt.includes('3/4')) setActiveStageTab('3/4');
                     else if (newSt.includes('4/4')) setActiveStageTab('4/4');
