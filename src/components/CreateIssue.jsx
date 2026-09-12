@@ -465,7 +465,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         {/* Station Field */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-            <label style={{ fontWeight: 'bold' }}>Station (Optional):</label>
+            <label style={{ fontWeight: 'bold' }}>Station:</label>
             {groupName && (
               <div style={{ display: 'flex', gap: '10px' }}>
                 {stationMode !== 'select' ? (
@@ -641,7 +641,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         {/* Engine Variant Field */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-            <label style={{ fontWeight: 'bold' }}>Engine Variant (Optional):</label>
+            <label style={{ fontWeight: 'bold' }}>Engine Variant:</label>
             <div style={{ display: 'flex', gap: '10px' }}>
               {variantMode !== 'select' ? (
                 <button
@@ -927,7 +927,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         {/* Multi-Link Attachment Section */}
         <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', padding: '12px', backgroundColor: '#f8fafc' }}>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '6px', color: '#1e293b' }}>
-            🔗 Attachment Links (OneDrive, Google Drive, SharePoint - Unlimited):
+            🔗 Attachment Links:
           </label>
           
           <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
@@ -941,7 +941,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                   handleAddLink();
                 }
               }}
-              placeholder="Paste link here (e.g. https://...)" 
+              placeholder="Paste Link" 
               style={{ flex: 1, padding: '9px 12px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '14px', backgroundColor: '#fff' }}
             />
             <button
