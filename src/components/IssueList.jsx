@@ -271,7 +271,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }
   };
 
-  // Open Update Modal and Load Existing Progress Matrix
   const handleOpenUpdateModal = (issue) => {
     setSelectedIssue(issue);
     let cur = issue.status;
@@ -279,14 +278,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     if (cur === 'Completed' || cur === 'Complete' || cur === 'Closed') cur = 'Closed (4/4)';
     setModalStatus(cur);
 
-    // Initialise matrix from DB
     const matrix = issue.progress_matrix && typeof issue.progress_matrix === 'object' ? issue.progress_matrix : {};
 
-    // Shared Root Cause & Countermeasure
     setRootCause(matrix.root_cause || issue.root_cause || '');
     setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
 
-    // Per-stage details
     setStageDetails({
       '1/4': {
         progress: matrix['1/4']?.progress || (matrix['1/4'] ? '' : issue.progress_note || ''),
@@ -516,13 +512,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       const progressList = ['1/4', '2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.progress)
         .map((stg) => `In Progress ${stg}: ${pMatrix[stg].progress}`);
-      const formattedProgress = progressList.length > 0 ? progressList.join('\r\n') : '-';
+      const formattedProgress = progressList.length > 0 ? progressList.join('\n') : '-';
 
       // Susun format bertingkat (line break) bagi Remarks
       const remarkList = ['1/4', '2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.remark)
         .map((stg) => `In Progress ${stg}: ${pMatrix[stg].remark}`);
-      const formattedRemarks = remarkList.length > 0 ? remarkList.join('\r\n') : '-';
+      const formattedRemarks = remarkList.length > 0 ? remarkList.join('\n') : '-';
 
       return {
         'No.': index + 1,
@@ -613,7 +609,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       {/* Search & Filter Section */}
       <div style={{ backgroundColor: '#fff', padding: '16px 18px', borderRadius: '8px', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', marginBottom: '25px' }}>
         
-        {/* Row 1: Search (Placeholder tepat Search...) */}
+        {/* Row 1: Search */}
         <div style={{ marginBottom: '14px' }}>
           <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '6px' }}>
             🔍 Search
@@ -957,7 +953,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   </div>
                 </div>
 
-                {/* Bottom Action Section without redundant Init Link */}
+                {/* Bottom Action Section */}
                 <div style={{ borderTop: '1px solid #eee', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                   <span
                     style={{
@@ -1039,7 +1035,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
             <form onSubmit={handleSaveProgressMatrix}>
               
-              {/* Status Selector - Drives Unlocking of Stages */}
+              {/* Status Selector */}
               <div style={{ marginBottom: '15px', backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '6px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px', color: '#0f172a' }}>
                   Current Closing Status:
@@ -1065,7 +1061,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 </small>
               </div>
 
-              {/* 1. Root Cause & Countermeasure (Overall for Issue) */}
+              {/* 1. Root Cause & Countermeasure */}
               <div style={{ border: '1px solid #bfdbfe', backgroundColor: '#eff6ff', borderRadius: '6px', padding: '12px', marginBottom: '16px' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e3a8a', display: 'block', marginBottom: '8px' }}>
                   📋 Overall Root Cause & Countermeasure:
@@ -1100,7 +1096,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 </div>
               </div>
 
-              {/* 2. In Progress Tabs with Dynamic Lock Icon */}
+              {/* 2. In Progress Tabs */}
               <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '6px' }}>
                 {['1/4', '2/4', '3/4', '4/4'].map((stage) => {
                   const unlocked = isStageUnlocked(stage);
@@ -1130,7 +1126,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 })}
               </div>
 
-              {/* 3. Progress & Remark Inputs for Active Stage */}
+              {/* 3. Progress & Remark Inputs */}
               <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '14px', marginBottom: '15px', backgroundColor: '#f8fafc' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#0d3b66', display: 'block', marginBottom: '10px' }}>
                   Progress & Remark for In Progress {activeStageTab}:
@@ -1164,7 +1160,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   </div>
                 </div>
 
-                {/* Multiple Attachment Links for Current Stage */}
+                {/* Multiple Attachment Links */}
                 <div style={{ marginTop: '12px', borderTop: '1px dashed #cbd5e1', paddingTop: '10px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
                     🔗 Attachment Links for In Progress {activeStageTab}:
