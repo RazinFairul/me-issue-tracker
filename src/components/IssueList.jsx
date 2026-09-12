@@ -70,7 +70,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         setDbStations(stationsRes.data);
       }
       if (!variantsRes.error && variantsRes.data) {
-        setDbVariants(variantsRes.data.map(v => v.variant_name));
+        setDbVariants(variantsRes.data.map((v) => v.variant_name));
       }
     } catch (err) {
       console.error('Failed to fetch master dropdown data:', err);
@@ -106,7 +106,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     if (!dateString) return null;
     const dateObj = new Date(dateString);
     if (isNaN(dateObj.getTime())) return null;
-    return String(Math.min(5, Math.ceil(dateObj.getDate() / 7)));
+    const dayOfMonth = dateObj.getDate();
+    return String(Math.min(5, Math.ceil(dayOfMonth / 7)));
   };
 
   const periodOptions = useMemo(() => {
@@ -114,7 +115,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
-    
+
     const monthsSet = new Set();
     issues.forEach((i) => {
       const raw = i.date_time || i.created_at;
@@ -280,7 +281,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     // Initialise matrix from DB
     const matrix = issue.progress_matrix && typeof issue.progress_matrix === 'object' ? issue.progress_matrix : {};
-    
+
     // Shared Root Cause & Countermeasure
     setRootCause(matrix.root_cause || issue.root_cause || '');
     setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
@@ -309,7 +310,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       }
     });
 
-    // Default to active stage tab based on current status
     let activeStage = '1/4';
     if (cur.includes('2/4')) activeStage = '2/4';
     if (cur.includes('3/4')) activeStage = '3/4';
@@ -319,7 +319,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setTempLinkInput('');
   };
 
-  // Determine which stages are unlocked based on selected status in modal
   const maxUnlockedLevel = useMemo(() => {
     return STAGE_ORDER[modalStatus] || 1;
   }, [modalStatus]);
@@ -501,7 +500,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // Export to Native Excel (.xlsx) mengikut struktur Progress & Remarks berasingan
+  // Export to Native Excel (.xlsx) dengan baris bertingkat In Progress 1/4, 2/4, 3/4
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('No issue data available to export with the current filters.');
@@ -513,17 +512,17 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       const rawDate = i.date_time || i.created_at;
       const pMatrix = i.progress_matrix || {};
 
-      // Gabungkan Progress mengikut In Progress 1/4 -> 4/4
-      const progressEntries = ['1/4', '2/4', '3/4', '4/4']
+      // Susun format bertingkat (line break) bagi Progress
+      const progressList = ['1/4', '2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.progress)
-        .map((stg) => `[In Progress ${stg}: ${pMatrix[stg].progress}]`);
-      const combinedProgress = progressEntries.length > 0 ? progressEntries.join(' ') : '-';
+        .map((stg) => `In Progress ${stg}: ${pMatrix[stg].progress}`);
+      const formattedProgress = progressList.length > 0 ? progressList.join('\r\n') : '-';
 
-      // Gabungkan Remarks mengikut In Progress 1/4 -> 4/4
-      const remarkEntries = ['1/4', '2/4', '3/4', '4/4']
+      // Susun format bertingkat (line break) bagi Remarks
+      const remarkList = ['1/4', '2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.remark)
-        .map((stg) => `[In Progress ${stg}: ${pMatrix[stg].remark}]`);
-      const combinedRemarks = remarkEntries.length > 0 ? remarkEntries.join(' ') : '-';
+        .map((stg) => `In Progress ${stg}: ${pMatrix[stg].remark}`);
+      const formattedRemarks = remarkList.length > 0 ? remarkList.join('\r\n') : '-';
 
       return {
         'No.': index + 1,
@@ -539,8 +538,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         'Person in Charge': i.pic_name || i.pic || '-',
         'Root Cause': pMatrix.root_cause || '-',
         'Countermeasure': pMatrix.countermeasure || '-',
-        'Progress': combinedProgress,
-        'Remarks': combinedRemarks,
+        'Progress': formattedProgress,
+        'Remarks': formattedRemarks,
         'Estimate Closing Date': i.estimated_closing ? formatDateOnly(i.estimated_closing) : '-',
         'File Attachment URL': i.file_url || '-',
         'External Link': i.onedrive_link || '-'
@@ -563,8 +562,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       { wch: 22 },  // Person in Charge
       { wch: 30 },  // Root Cause
       { wch: 30 },  // Countermeasure
-      { wch: 45 },  // Progress (In Progress 1/4 -> 4/4)
-      { wch: 45 },  // Remarks (In Progress 1/4 -> 4/4)
+      { wch: 45 },  // Progress
+      { wch: 45 },  // Remarks
       { wch: 20 },  // Estimate Closing Date
       { wch: 40 },  // File Attachment URL
       { wch: 40 }   // External Link
@@ -614,7 +613,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       {/* Search & Filter Section */}
       <div style={{ backgroundColor: '#fff', padding: '16px 18px', borderRadius: '8px', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', marginBottom: '25px' }}>
         
-        {/* Row 1: Search */}
+        {/* Row 1: Search (Placeholder tepat Search...) */}
         <div style={{ marginBottom: '14px' }}>
           <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '6px' }}>
             🔍 Search
@@ -622,7 +621,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <input
               type="text"
-              placeholder="Search by issue, description, station, variant, staff..."
+              placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
