@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 import { supabase } from '../supabaseClient';
 
 const STAGE_ORDER = {
@@ -496,7 +496,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // Export to Native Excel (.xlsx) dengan baris bertingkat In Progress 1/4, 2/4, 3/4
+  // Export to Native Excel (.xlsx) dengan baris bertingkat menggunakan xlsx-js-style
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('No issue data available to export with the current filters.');
@@ -544,14 +544,23 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
 
-    // Aktifkan tetapan wrapText terus pada objek sel
-    Object.keys(worksheet).forEach((cellKey) => {
-      if (cellKey[0] === '!') return;
-      if (!worksheet[cellKey].s) worksheet[cellKey].s = {};
-      worksheet[cellKey].s.alignment = { 
-        wrapText: true, 
-        vertical: 'top' 
-      };
+    // KUNCI AUTO: Menyuntikkan gaya wrapText ke setiap sel melalui xlsx-js-style
+    Object.keys(worksheet).forEach((cell) => {
+      if (cell.startsWith('!')) return;
+
+      if (cell.endsWith('1')) {
+        // Header
+        worksheet[cell].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "0D3B66" } },
+          alignment: { vertical: "center", horizontal: "center", wrapText: true }
+        };
+      } else {
+        // Data sel
+        worksheet[cell].s = {
+          alignment: { vertical: "top", wrapText: true }
+        };
+      }
     });
 
     worksheet['!cols'] = [
@@ -660,7 +669,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           </div>
         </div>
 
-        {/* Row 2: Strict Order: date - status - class - group - location - engine variant - name */}
+        {/* Row 2: Strict Order */}
         <div 
           style={{ 
             display: 'grid', 
@@ -669,7 +678,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             alignItems: 'end'
           }}
         >
-          {/* 1. Date (Period) */}
+          {/* 1. Date */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               🗓️ Period:
@@ -693,7 +702,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             </select>
           </div>
 
-          {/* 2. Status: Full 1/4, 2/4, 3/4, 4/4 */}
+          {/* 2. Status */}
           <div style={{ minWidth: '0' }}>
             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '4px', whiteSpace: 'nowrap' }}>
               📌 Status:
