@@ -496,36 +496,57 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // Export to Native Excel (.xlsx) dengan baris bertingkat menggunakan xlsx-js-style
+  // Export to Native Excel (.xlsx) dengan status Harvey Ball dan auto multi-line Progress & Remarks
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('No issue data available to export with the current filters.');
       return;
     }
 
+    // Fungsi pemetaan status ke simbol Harvey Ball
+    const getHarveyBallStatus = (status) => {
+      if (!status || status === 'Open' || status === 'In Progress (1/4)') {
+        return '◔ In Progress (1/4)';
+      }
+      if (status.includes('2/4')) {
+        return '◑ In Progress (2/4)';
+      }
+      if (status.includes('3/4')) {
+        return '◕ In Progress (3/4)';
+      }
+      if (status.includes('4/4') || status === 'Closed' || status === 'Completed' || status === 'Complete') {
+        return '⚫ Closed (4/4)';
+      }
+      return '◔ In Progress (1/4)';
+    };
+
+    const rowHeights = [{ hpt: 28 }]; // Ketinggian baris tajuk
+
     const formattedData = filteredIssues.map((i, index) => {
-      const exportStatus = (!i.status || i.status === 'Open') ? 'In Progress (1/4)' : i.status;
       const rawDate = i.date_time || i.created_at;
       const pMatrix = i.progress_matrix || {};
 
-      // Susun format bertingkat bagi Progress
+      // Susun teks bertingkat In Progress 1/4 -> 4/4
       const progressList = ['1/4', '2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.progress)
         .map((stg) => `In Progress ${stg}: ${pMatrix[stg].progress}`);
       const formattedProgress = progressList.length > 0 ? progressList.join('\r\n') : '-';
 
-      // Susun format bertingkat bagi Remarks
       const remarkList = ['1/4', '2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.remark)
         .map((stg) => `In Progress ${stg}: ${pMatrix[stg].remark}`);
       const formattedRemarks = remarkList.length > 0 ? remarkList.join('\r\n') : '-';
+
+      // Kira bilangan baris maksimum untuk menentukan ketinggian baris Excel
+      const maxLines = Math.max(progressList.length, remarkList.length, 1);
+      rowHeights.push({ hpt: Math.max(22, maxLines * 18) });
 
       return {
         'No.': index + 1,
         'Reported by': i.staff_name || i.staff_id || '-',
         'Date & Time': rawDate ? formatDateTime(rawDate) : '-',
         'Issue Classification': i.classification || '-',
-        'Status': exportStatus,
+        'Status': getHarveyBallStatus(i.status),
         'Issue': i.what_issue || '-',
         'Issue Description': i.description || '-',
         'Group': i.group_name || '-',
@@ -544,19 +565,22 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
 
-    // KUNCI AUTO: Menyuntikkan gaya wrapText ke setiap sel melalui xlsx-js-style
+    // Tetapkan ketinggian setiap baris
+    worksheet['!rows'] = rowHeights;
+
+    // Suntikkan gaya wrapText & alignment secara terus ke semua sel
     Object.keys(worksheet).forEach((cell) => {
       if (cell.startsWith('!')) return;
 
       if (cell.endsWith('1')) {
-        // Header
+        // Baris Tajuk (Header)
         worksheet[cell].s = {
           font: { bold: true, color: { rgb: "FFFFFF" } },
           fill: { fgColor: { rgb: "0D3B66" } },
           alignment: { vertical: "center", horizontal: "center", wrapText: true }
         };
       } else {
-        // Data sel
+        // Baris Kandungan Data
         worksheet[cell].s = {
           alignment: { vertical: "top", wrapText: true }
         };
@@ -568,7 +592,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       { wch: 22 },
       { wch: 22 },
       { wch: 18 },
-      { wch: 18 },
+      { wch: 20 },
       { wch: 28 },
       { wch: 38 },
       { wch: 20 },
