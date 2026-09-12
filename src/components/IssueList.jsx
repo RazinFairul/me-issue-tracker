@@ -508,17 +508,17 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       const rawDate = i.date_time || i.created_at;
       const pMatrix = i.progress_matrix || {};
 
-      // Susun format bertingkat (line break) bagi Progress
+      // Susun format bertingkat bagi Progress
       const progressList = ['1/4', '2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.progress)
         .map((stg) => `In Progress ${stg}: ${pMatrix[stg].progress}`);
-      const formattedProgress = progressList.length > 0 ? progressList.join('\n') : '-';
+      const formattedProgress = progressList.length > 0 ? progressList.join('\r\n') : '-';
 
-      // Susun format bertingkat (line break) bagi Remarks
+      // Susun format bertingkat bagi Remarks
       const remarkList = ['1/4', '2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.remark)
         .map((stg) => `In Progress ${stg}: ${pMatrix[stg].remark}`);
-      const formattedRemarks = remarkList.length > 0 ? remarkList.join('\n') : '-';
+      const formattedRemarks = remarkList.length > 0 ? remarkList.join('\r\n') : '-';
 
       return {
         'No.': index + 1,
@@ -544,25 +544,35 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
 
+    // Aktifkan tetapan wrapText terus pada objek sel
+    Object.keys(worksheet).forEach((cellKey) => {
+      if (cellKey[0] === '!') return;
+      if (!worksheet[cellKey].s) worksheet[cellKey].s = {};
+      worksheet[cellKey].s.alignment = { 
+        wrapText: true, 
+        vertical: 'top' 
+      };
+    });
+
     worksheet['!cols'] = [
-      { wch: 6 },   // No.
-      { wch: 22 },  // Reported by
-      { wch: 22 },  // Date & Time
-      { wch: 18 },  // Issue Classification
-      { wch: 18 },  // Status
-      { wch: 28 },  // Issue
-      { wch: 38 },  // Issue Description
-      { wch: 20 },  // Group
-      { wch: 20 },  // Location / Station
-      { wch: 18 },  // Engine Variant
-      { wch: 22 },  // Person in Charge
-      { wch: 30 },  // Root Cause
-      { wch: 30 },  // Countermeasure
-      { wch: 45 },  // Progress
-      { wch: 45 },  // Remarks
-      { wch: 20 },  // Estimate Closing Date
-      { wch: 40 },  // File Attachment URL
-      { wch: 40 }   // External Link
+      { wch: 6 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 28 },
+      { wch: 38 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 30 },
+      { wch: 30 },
+      { wch: 45 },
+      { wch: 45 },
+      { wch: 20 },
+      { wch: 40 },
+      { wch: 40 }
     ];
 
     const workbook = XLSX.utils.book_new();
