@@ -13,7 +13,11 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [classification, setClassification] = useState('');
   const [estimatedClosing, setEstimatedClosing] = useState('');
   const [file, setFile] = useState(null);
-  const [onedriveLink, setOnedriveLink] = useState('');
+
+  // Multi-Link States
+  const [linkList, setLinkList] = useState([]);
+  const [tempLinkInput, setTempLinkInput] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
 
@@ -236,6 +240,24 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
     setVariantLoading(false);
   };
 
+  // Multi-Link Handlers
+  const handleAddLink = () => {
+    const trimmed = tempLinkInput.trim();
+    if (!trimmed) return;
+    try {
+      new URL(trimmed);
+    } catch (_) {
+      alert('Please enter a valid URL (e.g. https://...)');
+      return;
+    }
+    setLinkList((prev) => [...prev, trimmed]);
+    setTempLinkInput('');
+  };
+
+  const handleRemoveLink = (idxToRemove) => {
+    setLinkList((prev) => prev.filter((_, idx) => idx !== idxToRemove));
+  };
+
   // Remove selected file attachment
   const handleRemoveFile = () => {
     setFile(null);
@@ -324,6 +346,20 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
         fileUrl = urlData.publicUrl;
       }
 
+      // Initialise progress matrix with linkList mapped to Phase 1/4
+      const initialProgressMatrix = {
+        root_cause: '',
+        countermeasure: '',
+        '1/4': {
+          progress: '',
+          remark: '',
+          links: linkList
+        },
+        '2/4': { progress: '', remark: '', links: [] },
+        '3/4': { progress: '', remark: '', links: [] },
+        '4/4': { progress: '', remark: '', links: [] }
+      };
+
       const { error: insertError } = await supabase.from('issues').insert([
         {
           what_issue: whatIssue,
@@ -340,10 +376,11 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           staff_name: autoStaffName,
           staff_id: user?.user_metadata?.staff_id || null,
           file_url: fileUrl,
-          onedrive_link: onedriveLink.trim() || null,
+          onedrive_link: linkList.length > 0 ? linkList[0] : null, // Primary fallback link
+          progress_matrix: initialProgressMatrix,
           user_id: user.id,
           user_email: user.email,
-          status: 'Open',
+          status: 'In Progress (1/4)',
         },
       ]);
 
@@ -425,7 +462,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </select>
         </div>
 
-        {/* Station Field (Dedicated Add & Delete Action Buttons) */}
+        {/* Station Field */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Station (Optional):</label>
@@ -489,7 +526,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             )}
           </div>
 
-          {/* 1. Mod Tambah Stesen */}
           {stationMode === 'add' && (
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
@@ -526,7 +562,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             </div>
           )}
 
-          {/* 2. Mod Padam Stesen (Selamat & Terasing) */}
           {stationMode === 'delete' && (
             <div style={{ display: 'flex', gap: '8px' }}>
               <select
@@ -570,7 +605,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             </div>
           )}
 
-          {/* 3. Mod Pilihan Biasa (Select) - Tiada lagi butang Delete di sebelah */}
           {stationMode === 'select' && (
             <select
               value={location}
@@ -604,7 +638,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           )}
         </div>
 
-        {/* Engine Variant Field (Dedicated Add & Delete Action Buttons) */}
+        {/* Engine Variant Field */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontWeight: 'bold' }}>Engine Variant (Optional):</label>
@@ -666,7 +700,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             </div>
           </div>
 
-          {/* 1. Mod Tambah Varian */}
           {variantMode === 'add' && (
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
@@ -703,7 +736,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             </div>
           )}
 
-          {/* 2. Mod Padam Varian (Selamat & Terasing) */}
           {variantMode === 'delete' && (
             <div style={{ display: 'flex', gap: '8px' }}>
               <select
@@ -747,7 +779,6 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
             </div>
           )}
 
-          {/* 3. Mod Pilihan Biasa (Select) */}
           {variantMode === 'select' && (
             <select
               value={engineVariant}
@@ -893,21 +924,84 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           </div>
         </div>
 
-        {/* Attachment Link */}
-        <div>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>
-            Attachment Link:
+        {/* Multi-Link Attachment Section */}
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', padding: '12px', backgroundColor: '#f8fafc' }}>
+          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '6px', color: '#1e293b' }}>
+            🔗 Attachment Links (OneDrive, Google Drive, SharePoint - Unlimited):
           </label>
-          <input 
-            type="url" 
-            value={onedriveLink} 
-            onChange={(e) => setOnedriveLink(e.target.value)} 
-            placeholder="Enter Link" 
-            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '16px' }}
-          />
-          <small style={{ color: '#666', display: 'block', marginTop: '4px' }}>
-            *Recommended for large files or videos exceeding standard size (OneDrive, SharePoint, or Google Drive).
+          
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <input 
+              type="url" 
+              value={tempLinkInput} 
+              onChange={(e) => setTempLinkInput(e.target.value)} 
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddLink();
+                }
+              }}
+              placeholder="Paste link here (e.g. https://...)" 
+              style={{ flex: 1, padding: '9px 12px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '14px', backgroundColor: '#fff' }}
+            />
+            <button
+              type="button"
+              onClick={handleAddLink}
+              style={{
+                padding: '9px 16px',
+                backgroundColor: '#0d3b66',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '5px',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+            >
+              + Add Link
+            </button>
+          </div>
+
+          <small style={{ color: '#64748b', display: 'block', marginBottom: '8px' }}>
+            *Recommended for large files or videos exceeding standard storage limits.
           </small>
+
+          {/* List of Added Links */}
+          {linkList.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+              {linkList.map((lnk, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: '#fff',
+                    padding: '6px 10px',
+                    borderRadius: '4px',
+                    border: '1px solid #cbd5e1'
+                  }}
+                >
+                  <a
+                    href={lnk}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '85%' }}
+                  >
+                    🔗 Link {idx + 1}: {lnk}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveLink(idx)}
+                    style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+                    title="Remove link"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <button 
