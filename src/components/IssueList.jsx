@@ -385,7 +385,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       '4/4': stageDetails['4/4']
     };
 
-    // Update progress_note column with the latest active stage note for dashboard fallback
     const latestNote = stageDetails[activeStageTab]?.progress || selectedIssue.progress_note || '';
 
     const { error } = await supabase
@@ -502,7 +501,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // Export to Native Excel (.xlsx)
+  // Export to Native Excel (.xlsx) mengikut struktur Progress & Remarks berasingan
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('No issue data available to export with the current filters.');
@@ -514,11 +513,17 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       const rawDate = i.date_time || i.created_at;
       const pMatrix = i.progress_matrix || {};
 
-      const formatStage = (stg) => {
-        const item = pMatrix[stg];
-        if (!item) return '-';
-        return `[Prog: ${item.progress || '-'}] [Remark: ${item.remark || '-'}]`;
-      };
+      // Gabungkan Progress mengikut In Progress 1/4 -> 4/4
+      const progressEntries = ['1/4', '2/4', '3/4', '4/4']
+        .filter((stg) => pMatrix[stg]?.progress)
+        .map((stg) => `[In Progress ${stg}: ${pMatrix[stg].progress}]`);
+      const combinedProgress = progressEntries.length > 0 ? progressEntries.join(' ') : '-';
+
+      // Gabungkan Remarks mengikut In Progress 1/4 -> 4/4
+      const remarkEntries = ['1/4', '2/4', '3/4', '4/4']
+        .filter((stg) => pMatrix[stg]?.remark)
+        .map((stg) => `[In Progress ${stg}: ${pMatrix[stg].remark}]`);
+      const combinedRemarks = remarkEntries.length > 0 ? remarkEntries.join(' ') : '-';
 
       return {
         'No.': index + 1,
@@ -532,12 +537,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         'Location / Station': i.location || '-',
         'Engine Variant': i.engine_variant || '-',
         'Person in Charge': i.pic_name || i.pic || '-',
-        'Root Cause (Overall)': pMatrix.root_cause || '-',
-        'Countermeasure (Overall)': pMatrix.countermeasure || '-',
-        'Stage 1/4 (Progress & Remark)': formatStage('1/4'),
-        'Stage 2/4 (Progress & Remark)': formatStage('2/4'),
-        'Stage 3/4 (Progress & Remark)': formatStage('3/4'),
-        'Stage 4/4 (Progress & Remark)': formatStage('4/4'),
+        'Root Cause': pMatrix.root_cause || '-',
+        'Countermeasure': pMatrix.countermeasure || '-',
+        'Progress': combinedProgress,
+        'Remarks': combinedRemarks,
         'Estimate Closing Date': i.estimated_closing ? formatDateOnly(i.estimated_closing) : '-',
         'File Attachment URL': i.file_url || '-',
         'External Link': i.onedrive_link || '-'
@@ -545,6 +548,28 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     });
 
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
+
+    worksheet['!cols'] = [
+      { wch: 6 },   // No.
+      { wch: 22 },  // Reported by
+      { wch: 22 },  // Date & Time
+      { wch: 18 },  // Issue Classification
+      { wch: 18 },  // Status
+      { wch: 28 },  // Issue
+      { wch: 38 },  // Issue Description
+      { wch: 20 },  // Group
+      { wch: 20 },  // Location / Station
+      { wch: 18 },  // Engine Variant
+      { wch: 22 },  // Person in Charge
+      { wch: 30 },  // Root Cause
+      { wch: 30 },  // Countermeasure
+      { wch: 45 },  // Progress (In Progress 1/4 -> 4/4)
+      { wch: 45 },  // Remarks (In Progress 1/4 -> 4/4)
+      { wch: 20 },  // Estimate Closing Date
+      { wch: 40 },  // File Attachment URL
+      { wch: 40 }   // External Link
+    ];
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Issues Report');
 
@@ -903,13 +928,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </div>
                     )}
 
-                    {/* Progress & Remark for Each Stage */}
+                    {/* In Progress 1/4 - 4/4 on Card */}
                     {['1/4', '2/4', '3/4', '4/4'].map((stg) => {
                       const data = matrix[stg];
                       if (!data || (!data.progress && !data.remark && (!data.links || data.links.length === 0))) return null;
                       return (
                         <div key={stg} style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 8px', borderRadius: '4px', marginTop: '4px', fontSize: '11px' }}>
-                          <span style={{ fontWeight: 'bold', color: '#0369a1' }}>Phase {stg}:</span>
+                          <span style={{ fontWeight: 'bold', color: '#0369a1' }}>In Progress {stg}:</span>
                           {data.progress && <div>• <b>Progress:</b> {data.progress}</div>}
                           {data.remark && <div>• <b>Remark:</b> {data.remark}</div>}
                           {data.links && data.links.length > 0 && (
@@ -933,7 +958,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   </div>
                 </div>
 
-                {/* Bottom Action Section: Cleaned up without redundant Init Link */}
+                {/* Bottom Action Section without redundant Init Link */}
                 <div style={{ borderTop: '1px solid #eee', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                   <span
                     style={{
@@ -1018,7 +1043,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               {/* Status Selector - Drives Unlocking of Stages */}
               <div style={{ marginBottom: '15px', backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '6px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px', color: '#0f172a' }}>
-                  Current Closing Status (Harvey Ball):
+                  Current Closing Status:
                 </label>
                 <select
                   value={modalStatus}
@@ -1037,7 +1062,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   <option value="Closed (4/4)">⚫ Closed (4/4)</option>
                 </select>
                 <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
-                  *Changing to higher progress unlocks the corresponding phase below.
+                  *Changing to higher progress unlocks the corresponding In Progress tab below.
                 </small>
               </div>
 
@@ -1076,7 +1101,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 </div>
               </div>
 
-              {/* 2. Stage Tabs with Dynamic Lock Icon */}
+              {/* 2. In Progress Tabs with Dynamic Lock Icon */}
               <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '6px' }}>
                 {['1/4', '2/4', '3/4', '4/4'].map((stage) => {
                   const unlocked = isStageUnlocked(stage);
@@ -1100,7 +1125,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       }}
                       title={!unlocked ? `Update status to at least ${stage} to unlock this tab.` : ''}
                     >
-                      {!unlocked ? '🔒 ' : '✓ '} Phase {stage}
+                      {!unlocked ? '🔒 ' : '✓ '} In Progress {stage}
                     </button>
                   );
                 })}
@@ -1109,7 +1134,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               {/* 3. Progress & Remark Inputs for Active Stage */}
               <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '14px', marginBottom: '15px', backgroundColor: '#f8fafc' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#0d3b66', display: 'block', marginBottom: '10px' }}>
-                  Progress & Remark for Phase {activeStageTab}:
+                  Progress & Remark for In Progress {activeStageTab}:
                 </span>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px', marginBottom: '10px' }}>
@@ -1119,7 +1144,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                     </label>
                     <textarea
                       rows="3"
-                      placeholder={`Enter progress notes for ${activeStageTab}...`}
+                      placeholder={`Enter progress notes for In Progress ${activeStageTab}...`}
                       value={stageDetails[activeStageTab]?.progress || ''}
                       onChange={(e) => handleStageFieldChange('progress', e.target.value)}
                       style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
@@ -1132,7 +1157,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                     </label>
                     <textarea
                       rows="3"
-                      placeholder={`Enter remarks / blockers for ${activeStageTab}...`}
+                      placeholder={`Enter remarks / blockers for In Progress ${activeStageTab}...`}
                       value={stageDetails[activeStageTab]?.remark || ''}
                       onChange={(e) => handleStageFieldChange('remark', e.target.value)}
                       style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
@@ -1143,13 +1168,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 {/* Multiple Attachment Links for Current Stage */}
                 <div style={{ marginTop: '12px', borderTop: '1px dashed #cbd5e1', paddingTop: '10px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                    🔗 Attachment Links for Phase {activeStageTab} (Unlimited):
+                    🔗 Attachment Links for In Progress {activeStageTab}:
                   </label>
 
                   <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
                     <input
                       type="url"
-                      placeholder="Paste link (OneDrive, Google Drive, SharePoint)..."
+                      placeholder="Paste Link"
                       value={tempLinkInput}
                       onChange={(e) => setTempLinkInput(e.target.value)}
                       style={{ flex: 1, padding: '6px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
