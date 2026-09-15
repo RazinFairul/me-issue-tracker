@@ -428,7 +428,7 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
               textDecoration: 'underline',
             }}
           >
-            {authMode === 'signup' ? 'Already have an account? Log In' : "Don't have an account? Register here”"}
+            {authMode === 'signup' ? 'Already have an account? Log In' : "Don't have an account? Register here"}
           </button>
         )}
       </div>
