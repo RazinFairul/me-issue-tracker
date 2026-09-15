@@ -204,7 +204,7 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
           </div>
         )}
 
-        {/* Full Name & Staff ID (Sign Up Sahaja) */}
+        {/* Full Name & Staff ID (Sign Up ) */}
         {authMode === 'signup' && (
           <>
             <div>
@@ -428,7 +428,7 @@ export default function Auth({ onLoginSuccess, forceRecoveryMode = false, onPass
               textDecoration: 'underline',
             }}
           >
-            {authMode === 'signup' ? 'Already have an account? Log In' : "Don't have an account? Sign Up"}
+            {authMode === 'signup' ? 'Already have an account? Log In' : "Don't have an account? Register here”"}
           </button>
         )}
       </div>
