@@ -13,8 +13,7 @@ const STAGE_ORDER = {
 const DEFAULT_STAGES = {
   '1/4': { progress: '', remark: '', links: [] },
   '2/4': { progress: '', remark: '', links: [] },
-  '3/4': { progress: '', remark: '', links: [] },
-  '4/4': { progress: '', remark: '', links: [] }
+  '3/4': { progress: '', remark: '', links: [] }
 };
 
 export default function IssueList({ onBackToDashboard, refreshTrigger }) {
@@ -283,6 +282,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setRootCause(matrix.root_cause || issue.root_cause || '');
     setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
 
+    // In-Progress hanya untuk 1/4, 2/4, dan 3/4
     setStageDetails({
       '1/4': {
         progress: matrix['1/4']?.progress || (matrix['1/4'] ? '' : issue.progress_note || ''),
@@ -298,18 +298,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         progress: matrix['3/4']?.progress || '',
         remark: matrix['3/4']?.remark || '',
         links: matrix['3/4']?.links || []
-      },
-      '4/4': {
-        progress: matrix['4/4']?.progress || '',
-        remark: matrix['4/4']?.remark || '',
-        links: matrix['4/4']?.links || []
       }
     });
 
     let activeStage = '1/4';
     if (cur.includes('2/4')) activeStage = '2/4';
-    if (cur.includes('3/4')) activeStage = '3/4';
-    if (cur.includes('4/4')) activeStage = '4/4';
+    if (cur.includes('3/4') || cur.includes('4/4')) activeStage = '3/4';
     setActiveStageTab(activeStage);
 
     setTempLinkInput('');
@@ -320,7 +314,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   }, [modalStatus]);
 
   const isStageUnlocked = (stageKey) => {
-    const stageMap = { '1/4': 1, '2/4': 2, '3/4': 3, '4/4': 4 };
+    const stageMap = { '1/4': 1, '2/4': 2, '3/4': 3 };
     return stageMap[stageKey] <= maxUnlockedLevel;
   };
 
@@ -376,8 +370,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       countermeasure: countermeasure,
       '1/4': stageDetails['1/4'],
       '2/4': stageDetails['2/4'],
-      '3/4': stageDetails['3/4'],
-      '4/4': stageDetails['4/4']
+      '3/4': stageDetails['3/4']
     };
 
     const latestNote = stageDetails[activeStageTab]?.progress || selectedIssue.progress_note || '';
@@ -496,14 +489,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // Export to Native Excel (.xlsx) dengan status Harvey Ball dan auto multi-line Progress & Remarks
+  // Export to Native Excel (.xlsx) dengan status Harvey Ball dan auto multi-line Progress & Remarks (1/4 - 3/4)
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('No issue data available to export with the current filters.');
       return;
     }
 
-    // Fungsi pemetaan status ke simbol Harvey Ball
     const getHarveyBallStatus = (status) => {
       if (!status || status === 'Open' || status === 'In Progress (1/4)') {
         return '◔ In Progress (1/4)';
@@ -520,24 +512,23 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       return '◔ In Progress (1/4)';
     };
 
-    const rowHeights = [{ hpt: 28 }]; // Ketinggian baris tajuk
+    const rowHeights = [{ hpt: 28 }];
 
     const formattedData = filteredIssues.map((i, index) => {
       const rawDate = i.date_time || i.created_at;
       const pMatrix = i.progress_matrix || {};
 
-      // Susun teks bertingkat In Progress 1/4 -> 4/4
-      const progressList = ['1/4', '2/4', '3/4', '4/4']
+      // Susun teks bertingkat In Progress 1/4 -> 3/4 sahaja
+      const progressList = ['1/4', '2/4', '3/4']
         .filter((stg) => pMatrix[stg]?.progress)
         .map((stg) => `In Progress ${stg}: ${pMatrix[stg].progress}`);
       const formattedProgress = progressList.length > 0 ? progressList.join('\r\n') : '-';
 
-      const remarkList = ['1/4', '2/4', '3/4', '4/4']
+      const remarkList = ['1/4', '2/4', '3/4']
         .filter((stg) => pMatrix[stg]?.remark)
         .map((stg) => `In Progress ${stg}: ${pMatrix[stg].remark}`);
       const formattedRemarks = remarkList.length > 0 ? remarkList.join('\r\n') : '-';
 
-      // Kira bilangan baris maksimum untuk menentukan ketinggian baris Excel
       const maxLines = Math.max(progressList.length, remarkList.length, 1);
       rowHeights.push({ hpt: Math.max(22, maxLines * 18) });
 
@@ -564,23 +555,18 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     });
 
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
-
-    // Tetapkan ketinggian setiap baris
     worksheet['!rows'] = rowHeights;
 
-    // Suntikkan gaya wrapText & alignment secara terus ke semua sel
     Object.keys(worksheet).forEach((cell) => {
       if (cell.startsWith('!')) return;
 
       if (cell.endsWith('1')) {
-        // Baris Tajuk (Header)
         worksheet[cell].s = {
           font: { bold: true, color: { rgb: "FFFFFF" } },
           fill: { fgColor: { rgb: "0D3B66" } },
           alignment: { vertical: "center", horizontal: "center", wrapText: true }
         };
       } else {
-        // Baris Kandungan Data
         worksheet[cell].s = {
           alignment: { vertical: "top", wrapText: true }
         };
@@ -966,8 +952,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </div>
                     )}
 
-                    {/* In Progress 1/4 - 4/4 on Card */}
-                    {['1/4', '2/4', '3/4', '4/4'].map((stg) => {
+                    {/* In Progress 1/4 - 3/4 on Card */}
+                    {['1/4', '2/4', '3/4'].map((stg) => {
                       const data = matrix[stg];
                       if (!data || (!data.progress && !data.remark && (!data.links || data.links.length === 0))) return null;
                       return (
@@ -1056,7 +1042,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         </div>
       )}
 
-      {/* Structured Progress & Multi-Link Table Modal */}
+      {/* Structured Progress & Multi-Link Modal (Hanya In Progress 1/4 - 3/4) */}
       {selectedIssue && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '15px' }}>
           <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '100%', maxWidth: '750px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
@@ -1089,8 +1075,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                     const newSt = e.target.value;
                     setModalStatus(newSt);
                     if (newSt.includes('2/4')) setActiveStageTab('2/4');
-                    else if (newSt.includes('3/4')) setActiveStageTab('3/4');
-                    else if (newSt.includes('4/4')) setActiveStageTab('4/4');
+                    else if (newSt.includes('3/4') || newSt.includes('4/4')) setActiveStageTab('3/4');
                   }}
                   style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #0d3b66', fontSize: '13px', backgroundColor: '#fff', fontWeight: 'bold' }}
                 >
@@ -1139,9 +1124,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 </div>
               </div>
 
-              {/* 2. In Progress Tabs */}
+              {/* 2. In Progress Tabs (1/4, 2/4, 3/4 Sahaja) */}
               <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '6px' }}>
-                {['1/4', '2/4', '3/4', '4/4'].map((stage) => {
+                {['1/4', '2/4', '3/4'].map((stage) => {
                   const unlocked = isStageUnlocked(stage);
                   const isSelected = activeStageTab === stage;
                   return (
