@@ -43,7 +43,7 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const gmailUser = Deno.env.get("GMAIL_USER") ?? "";
     const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
-    const bossEmail = Deno.env.get("BOSS_EMAIL") || "razinfairul@gmail.com";
+    const bossEmail = Deno.env.get("BOSS_EMAIL") || "b122310422@student.utem.edu.my";
 
     if (!gmailUser || !gmailAppPassword) {
       throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD is not set in Supabase Secrets.");
@@ -77,10 +77,11 @@ serve(async (req: Request) => {
     for (const issue of issues || []) {
       if (!issue.estimated_closing || !issue.pic_email) continue;
 
-      // Tapisan kebal: Abaikan jika status adalah Closed, Completed, atau Complete (tidak peka huruf besar/kecil)
+      // Tapisan kebal: Abaikan jika status adalah Closed, Completed, atau Complete
       const currentStatus = String(issue.status || "").trim().toLowerCase();
       if (
         currentStatus === "closed" ||
+        currentStatus === "closed (4/4)" ||
         currentStatus === "completed" ||
         currentStatus === "complete"
       ) {
@@ -100,27 +101,32 @@ serve(async (req: Request) => {
       let btnColor = "#2563eb";
       let descriptionText = "";
 
-      if (daysDiff === 3) {
+      // 1. 2 HARI SEBELUM DUE DATE
+      if (daysDiff === 2) {
         shouldSend = true;
-        tagLabel = "3 DAYS BEFORE DUE";
+        tagLabel = "2 DAYS BEFORE DUE";
         titleHeader = "⚠️ Due Date Reminder";
         headerColor = "#d97706";
         btnColor = "#2563eb";
-        descriptionText = `The following issue assigned to you is approaching its target closing date in <strong>3 DAYS</strong>:`;
-      } else if (daysDiff === -3) {
+        descriptionText = `The following issue assigned to you is approaching its target closing date in <strong>2 DAYS</strong>:`;
+      } 
+      // 2. 1 HARI SEBELUM DUE DATE (ESOK)
+      else if (daysDiff === 1) {
         shouldSend = true;
-        tagLabel = "OVERDUE (3 DAYS LATE)";
+        tagLabel = "1 DAY BEFORE DUE (TOMORROW)";
+        titleHeader = "⏰ Urgent Due Date Reminder";
+        headerColor = "#ea580c";
+        btnColor = "#ea580c";
+        descriptionText = `The following issue assigned to you is due <strong>TOMORROW (1 DAY REMAINING)</strong>:`;
+      } 
+      // 3. 2 HARI SELEPAS DUE DATE (OVERDUE)
+      else if (daysDiff === -2) {
+        shouldSend = true;
+        tagLabel = "OVERDUE (2 DAYS LATE)";
         titleHeader = "🚨 Overdue Issue Reminder";
         headerColor = "#dc2626";
         btnColor = "#dc2626";
-        descriptionText = `The following issue assigned to you is now <strong>OVERDUE by 3 DAYS</strong>:`;
-      } else if (daysDiff === -6) {
-        shouldSend = true;
-        tagLabel = "CRITICAL OVERDUE (6 DAYS LATE)";
-        titleHeader = "🛑 Critical Overdue Notice";
-        headerColor = "#7f1d1d";
-        btnColor = "#7f1d1d";
-        descriptionText = `The following issue is strictly <strong>OVERDUE by 6 DAYS</strong> and requires immediate action:`;
+        descriptionText = `The following issue assigned to you is now <strong>OVERDUE by 2 DAYS</strong>:`;
       }
 
       if (shouldSend) {
