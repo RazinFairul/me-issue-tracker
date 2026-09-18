@@ -20,7 +20,7 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState('home');
 
-  // Pengesanan Orientasi Dinamik: Potret (Phone/Tablet menegak) vs Landskap (Laptop/PC/Tablet melintang)
+  // Pengesanan Orientasi Dinamik: Potret vs Landskap
   const checkIsPortrait = () => {
     return window.innerHeight > window.innerWidth || window.innerWidth <= 768;
   };
@@ -48,6 +48,7 @@ export default function App() {
 
   const handleLogout = useCallback(async () => {
     localStorage.removeItem('me_last_active_time');
+    localStorage.removeItem('open_issue_id');
     await supabase.auth.signOut();
     window.location.hash = '';
     setActiveTab('home');
@@ -94,10 +95,18 @@ export default function App() {
     };
   }, [session, handleLogout]);
 
-  // URL Hash Navigation Handler
+  // URL Hash Navigation & Deep Link Handler
   useEffect(() => {
     const handleHashChange = () => {
       if (isRecoveryMode) return;
+
+      // 1. Periksa sama ada terdapat parameter ?issueId=... dari pautan emel
+      const searchParams = new URLSearchParams(window.location.search);
+      const targetIssueId = searchParams.get('issueId');
+
+      if (targetIssueId) {
+        localStorage.setItem('open_issue_id', targetIssueId);
+      }
 
       const currentHash = window.location.hash.replace('#/', '').replace('#', '');
 
@@ -107,6 +116,13 @@ export default function App() {
         } else {
           setShowAuthModal(false);
         }
+        return;
+      }
+
+      // 2. Jika ada issueId dari emel dan user sudah login, buka tab 'list' secara langsung
+      if (targetIssueId) {
+        window.history.replaceState(null, '', `/?issueId=${targetIssueId}#/list`);
+        setActiveTab('list');
         return;
       }
 
@@ -200,10 +216,21 @@ export default function App() {
 
         setSession(session);
         fetchProfile(session.user);
-        const currentHash = window.location.hash.replace('#/', '').replace('#', '');
-        if (!currentHash || currentHash === 'login') {
-          window.history.replaceState(null, '', '#/home');
-          setActiveTab('home');
+
+        // Pengendalian Deep Link semasa session disahkan
+        const searchParams = new URLSearchParams(window.location.search);
+        const targetIssueId = searchParams.get('issueId');
+
+        if (targetIssueId) {
+          localStorage.setItem('open_issue_id', targetIssueId);
+          window.history.replaceState(null, '', `/?issueId=${targetIssueId}#/list`);
+          setActiveTab('list');
+        } else {
+          const currentHash = window.location.hash.replace('#/', '').replace('#', '');
+          if (!currentHash || currentHash === 'login') {
+            window.history.replaceState(null, '', '#/home');
+            setActiveTab('home');
+          }
         }
       }
       setLoading(false);
@@ -221,10 +248,19 @@ export default function App() {
         fetchProfile(session.user);
         setShowAuthModal(false);
 
-        const currentHash = window.location.hash.replace('#/', '').replace('#', '');
-        if (!currentHash || currentHash === 'login') {
-          window.history.replaceState(null, '', '#/home');
-          setActiveTab('home');
+        const searchParams = new URLSearchParams(window.location.search);
+        const targetIssueId = searchParams.get('issueId');
+
+        if (targetIssueId) {
+          localStorage.setItem('open_issue_id', targetIssueId);
+          window.history.replaceState(null, '', `/?issueId=${targetIssueId}#/list`);
+          setActiveTab('list');
+        } else {
+          const currentHash = window.location.hash.replace('#/', '').replace('#', '');
+          if (!currentHash || currentHash === 'login') {
+            window.history.replaceState(null, '', '#/home');
+            setActiveTab('home');
+          }
         }
       } else if (!session) {
         setUserProfile(null);

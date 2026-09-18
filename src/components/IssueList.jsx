@@ -309,6 +309,18 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setTempLinkInput('');
   };
 
+  // Deep Link Auto-Opener: Memeriksa dan membuka modal isu jika diarahkan dari emel
+  useEffect(() => {
+    const autoOpenId = localStorage.getItem('open_issue_id');
+    if (autoOpenId && issues && issues.length > 0) {
+      const targetIssue = issues.find((item) => String(item.id) === String(autoOpenId));
+      if (targetIssue) {
+        handleOpenUpdateModal(targetIssue);
+        localStorage.removeItem('open_issue_id');
+      }
+    }
+  }, [issues]);
+
   const maxUnlockedLevel = useMemo(() => {
     return STAGE_ORDER[modalStatus] || 1;
   }, [modalStatus]);
@@ -518,7 +530,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       const rawDate = i.date_time || i.created_at;
       const pMatrix = i.progress_matrix || {};
 
-      // Susun teks bertingkat In Progress 1/4 -> 3/4 sahaja
       const progressList = ['1/4', '2/4', '3/4']
         .filter((stg) => pMatrix[stg]?.progress)
         .map((stg) => `In Progress ${stg}: ${pMatrix[stg].progress}`);
@@ -848,6 +859,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             return (
               <div
                 key={issue.id}
+                id={`issue-card-${issue.id}`}
                 style={{
                   backgroundColor: '#fff',
                   border: '1px solid #e0e0e0',
