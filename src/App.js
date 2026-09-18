@@ -41,6 +41,15 @@ export default function App() {
     };
   }, []);
 
+  // Tangkap issueId seawal render pertama dan simpan secara selamat
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const targetIssueId = searchParams.get('issueId');
+    if (targetIssueId) {
+      localStorage.setItem('open_issue_id', targetIssueId);
+    }
+  }, []);
+
   // Detect password recovery mode from email reset links
   const [isRecoveryMode, setIsRecoveryMode] = useState(
     window.location.hash.includes('type=recovery') || window.location.href.includes('type=recovery')
@@ -100,18 +109,18 @@ export default function App() {
     const handleHashChange = () => {
       if (isRecoveryMode) return;
 
-      // 1. Periksa sama ada terdapat parameter ?issueId=... dari pautan emel
       const searchParams = new URLSearchParams(window.location.search);
-      const targetIssueId = searchParams.get('issueId');
-
-      if (targetIssueId) {
-        localStorage.setItem('open_issue_id', targetIssueId);
+      const urlIssueId = searchParams.get('issueId');
+      if (urlIssueId) {
+        localStorage.setItem('open_issue_id', urlIssueId);
       }
 
+      const pendingIssueId = urlIssueId || localStorage.getItem('open_issue_id');
       const currentHash = window.location.hash.replace('#/', '').replace('#', '');
 
       if (!session) {
-        if (currentHash === 'login') {
+        // Jika belum ada sesi dan ada issueId, terus buka modal log masuk
+        if (pendingIssueId || currentHash === 'login') {
           setShowAuthModal(true);
         } else {
           setShowAuthModal(false);
@@ -119,9 +128,9 @@ export default function App() {
         return;
       }
 
-      // 2. Jika ada issueId dari emel dan user sudah login, buka tab 'list' secara langsung
-      if (targetIssueId) {
-        window.history.replaceState(null, '', `/?issueId=${targetIssueId}#/list`);
+      // Jika ada isu yang menunggu dan sesi telah wujud, halakan terus ke tab list
+      if (pendingIssueId) {
+        window.history.replaceState(null, '', `/?issueId=${pendingIssueId}#/list`);
         setActiveTab('list');
         return;
       }
@@ -206,6 +215,14 @@ export default function App() {
         return;
       }
 
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlIssueId = searchParams.get('issueId');
+      if (urlIssueId) {
+        localStorage.setItem('open_issue_id', urlIssueId);
+      }
+
+      const targetIssueId = urlIssueId || localStorage.getItem('open_issue_id');
+
       if (session) {
         const lastActive = localStorage.getItem('me_last_active_time');
         if (lastActive && Date.now() - parseInt(lastActive, 10) > TIMEOUT_DURATION_MS) {
@@ -217,12 +234,7 @@ export default function App() {
         setSession(session);
         fetchProfile(session.user);
 
-        // Pengendalian Deep Link semasa session disahkan
-        const searchParams = new URLSearchParams(window.location.search);
-        const targetIssueId = searchParams.get('issueId');
-
         if (targetIssueId) {
-          localStorage.setItem('open_issue_id', targetIssueId);
           window.history.replaceState(null, '', `/?issueId=${targetIssueId}#/list`);
           setActiveTab('list');
         } else {
@@ -231,6 +243,10 @@ export default function App() {
             window.history.replaceState(null, '', '#/home');
             setActiveTab('home');
           }
+        }
+      } else {
+        if (targetIssueId) {
+          setShowAuthModal(true);
         }
       }
       setLoading(false);
@@ -249,10 +265,14 @@ export default function App() {
         setShowAuthModal(false);
 
         const searchParams = new URLSearchParams(window.location.search);
-        const targetIssueId = searchParams.get('issueId');
+        const urlIssueId = searchParams.get('issueId');
+        if (urlIssueId) {
+          localStorage.setItem('open_issue_id', urlIssueId);
+        }
+
+        const targetIssueId = urlIssueId || localStorage.getItem('open_issue_id');
 
         if (targetIssueId) {
-          localStorage.setItem('open_issue_id', targetIssueId);
           window.history.replaceState(null, '', `/?issueId=${targetIssueId}#/list`);
           setActiveTab('list');
         } else {
@@ -324,6 +344,11 @@ export default function App() {
           <Auth onLoginSuccess={() => {
             localStorage.setItem('me_last_active_time', String(Date.now()));
             setShowAuthModal(false);
+            const pendingIssueId = localStorage.getItem('open_issue_id');
+            if (pendingIssueId) {
+              window.history.replaceState(null, '', `/?issueId=${pendingIssueId}#/list`);
+              setActiveTab('list');
+            }
           }} />
         </div>
       );
