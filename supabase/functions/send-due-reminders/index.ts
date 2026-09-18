@@ -43,7 +43,7 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const gmailUser = Deno.env.get("GMAIL_USER") ?? "";
     const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
-    const bossEmail = Deno.env.get("BOSS_EMAIL") || "b122310422@student.utem.edu.my";
+    const bossEmail = Deno.env.get("BOSS_EMAIL") || "KARIMM@proton.com";
 
     if (!gmailUser || !gmailAppPassword) {
       throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD is not set in Supabase Secrets.");
