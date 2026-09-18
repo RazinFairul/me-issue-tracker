@@ -349,10 +349,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const targetIssue = issues.find((item) => String(item.id) === String(autoOpenId));
     if (targetIssue) {
       if (checkCanEdit(targetIssue)) {
-        // Hanya buka modal jika akaun yang sedang aktif ialah PELAPOR ASAL
         handleOpenUpdateModal(targetIssue);
       } else {
-        // Jika bukan pelapor (PIC atau CC), hanya tatal (scroll) dan highlight pada kad
         setTimeout(() => {
           const cardElement = document.getElementById(`issue-card-${targetIssue.id}`);
           if (cardElement) {
@@ -369,6 +367,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       }
       localStorage.removeItem('open_issue_id');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issues, currentUser, loading]);
 
   const maxUnlockedLevel = useMemo(() => {
