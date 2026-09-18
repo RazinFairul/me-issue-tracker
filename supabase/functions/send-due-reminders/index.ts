@@ -119,14 +119,14 @@ serve(async (req: Request) => {
         btnColor = "#ea580c";
         descriptionText = `The following issue assigned to you is due <strong>TOMORROW (1 DAY REMAINING)</strong>:`;
       } 
-      // 3. 2 HARI SELEPAS DUE DATE (OVERDUE)
-      else if (daysDiff === -2) {
+      // 3. 1 HARI SELEPAS DUE DATE (OVERDUE SEMALAM)
+      else if (daysDiff === -1) {
         shouldSend = true;
-        tagLabel = "OVERDUE (2 DAYS LATE)";
+        tagLabel = "OVERDUE (1 DAY LATE)";
         titleHeader = "🚨 Overdue Issue Reminder";
         headerColor = "#dc2626";
         btnColor = "#dc2626";
-        descriptionText = `The following issue assigned to you is now <strong>OVERDUE by 2 DAYS</strong>:`;
+        descriptionText = `The following issue assigned to you is now <strong>OVERDUE by 1 DAY</strong>:`;
       }
 
       if (shouldSend) {
