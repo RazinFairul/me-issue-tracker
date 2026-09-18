@@ -48,7 +48,8 @@ serve(async (req: Request) => {
     const ccEmails = [
       Deno.env.get("BOSS_EMAIL") || "KARIMM@proton.com",
       "UmarFahami@proton.com", // Sila tukar kepada alamat emel kedua anda
-      "Norridzuanmt@proton.com"  // Sila tukar kepada alamat emel ketiga anda
+      "Norridzuanmt@proton.com",
+      "NORFAEMS@proton.com"  // Sila tukar kepada alamat emel ketiga anda
     ].filter(Boolean);
 
     if (!gmailUser || !gmailAppPassword) {
