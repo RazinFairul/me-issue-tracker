@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import XLSX from 'xlsx-js-style';
 import { supabase } from '../supabaseClient';
 
@@ -50,10 +50,18 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [tempLinkInput, setTempLinkInput] = useState('');
   const [updating, setUpdating] = useState(false);
 
+  // Ref untuk memastikan deep link diproses sekali sahaja
+  const deepLinkProcessedRef = useRef(false);
+
   useEffect(() => {
     const getCurrentUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setCurrentUser(user);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setCurrentUser(session.user);
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        setCurrentUser(user);
+      }
     };
     getCurrentUser();
   }, []);
@@ -339,15 +347,28 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setTempLinkInput('');
   };
 
-  // Deep Link Auto-Opener: Sekat modal jika bukan reporter
+  // Deep Link Auto-Opener: Penyegerakan mantap selepas log masuk
   useEffect(() => {
-    if (loading || !currentUser || !issues || issues.length === 0) return;
+    if (loading || !currentUser || !issues || issues.length === 0 || deepLinkProcessedRef.current) return;
 
-    const autoOpenId = localStorage.getItem('open_issue_id');
-    if (!autoOpenId) return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const targetId = searchParams.get('issueId') || localStorage.getItem('open_issue_id');
+    if (!targetId) return;
 
-    const targetIssue = issues.find((item) => String(item.id) === String(autoOpenId));
+    const targetIssue = issues.find((item) => String(item.id) === String(targetId));
     if (targetIssue) {
+      deepLinkProcessedRef.current = true;
+
+      // Reset semua tapisan agar kad isu tidak tersembunyi
+      setSearchTerm('');
+      setPeriodFilter('All');
+      setStatusFilter('All');
+      setClassificationFilter('All');
+      setGroupFilter('All');
+      setLocationFilter('All');
+      setEngineVariantFilter('All');
+      setNameFilter('All');
+
       if (checkCanEdit(targetIssue)) {
         handleOpenUpdateModal(targetIssue);
       } else {
@@ -357,14 +378,15 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             cardElement.style.transition = 'box-shadow 0.5s ease, border-color 0.5s ease';
             cardElement.style.borderColor = '#0d3b66';
-            cardElement.style.boxShadow = '0 0 14px rgba(13, 59, 102, 0.45)';
+            cardElement.style.boxShadow = '0 0 16px rgba(13, 59, 102, 0.5)';
             setTimeout(() => {
               cardElement.style.borderColor = '#e0e0e0';
               cardElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
-            }, 4000);
+            }, 4500);
           }
-        }, 300);
+        }, 400);
       }
+
       localStorage.removeItem('open_issue_id');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
