@@ -43,7 +43,13 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const gmailUser = Deno.env.get("GMAIL_USER") ?? "";
     const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
-    const bossEmail = Deno.env.get("BOSS_EMAIL") || "KARIMM@proton.com";
+
+    // Senarai 3 penerima salinan (CC)
+    const ccEmails = [
+      Deno.env.get("BOSS_EMAIL") || "KARIMM@proton.com",
+      "UmarFahami@proton.com", // Sila tukar kepada alamat emel kedua anda
+      "Norridzuanmt@proton.com"  // Sila tukar kepada alamat emel ketiga anda
+    ].filter(Boolean);
 
     if (!gmailUser || !gmailAppPassword) {
       throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD is not set in Supabase Secrets.");
@@ -172,7 +178,7 @@ serve(async (req: Request) => {
         await client.send({
           from: `ME Issue Tracker <${gmailUser}>`,
           to: issue.pic_email,
-          cc: bossEmail ? [bossEmail] : undefined,
+          cc: ccEmails.length > 0 ? ccEmails : undefined,
           subject: subject,
           html: htmlContent,
         });
@@ -180,7 +186,7 @@ serve(async (req: Request) => {
         sentResults.push({
           issue_id: issue.id,
           recipient: issue.pic_email,
-          cc: bossEmail,
+          cc: ccEmails,
           condition: tagLabel,
           target_date: closingDateStr,
         });
