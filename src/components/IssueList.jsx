@@ -172,7 +172,33 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return Array.from(new Set(issues.map((i) => i.staff_name || i.staff_id).filter(Boolean))).sort();
   }, [issues]);
 
+  // Fungsi semakan kebenaran (Hanya Pemilik/Pelapor ATAU PIC boleh kemaskini)
+  const checkCanEdit = (issue) => {
+    if (!currentUser) return false;
+    const currentUserName =
+      currentUser?.user_metadata?.full_name ||
+      currentUser?.user_metadata?.name ||
+      currentUser?.email?.split('@')[0] ||
+      '';
+    const currentUserEmail = (currentUser?.email || '').toLowerCase().trim();
+
+    const isReporter =
+      (issue.user_id && issue.user_id === currentUser.id) ||
+      (issue.user_email && issue.user_email.toLowerCase().trim() === currentUserEmail) ||
+      (issue.staff_name && currentUserName && issue.staff_name.trim().toLowerCase() === currentUserName.trim().toLowerCase());
+
+    const isPic =
+      Boolean(issue.pic_email && issue.pic_email.toLowerCase().trim() === currentUserEmail);
+
+    return isReporter || isPic;
+  };
+
   const handleDeleteIssue = async (issue) => {
+    if (!checkCanEdit(issue)) {
+      alert('You do not have permission to delete this issue.');
+      return;
+    }
+
     const confirmDelete = window.confirm(`Are you sure you want to delete "${issue.what_issue || 'this issue'}"?`);
     if (!confirmDelete) return;
 
@@ -271,6 +297,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   };
 
   const handleOpenUpdateModal = (issue) => {
+    if (!checkCanEdit(issue)) {
+      alert('View only: You do not have permission to update this issue.');
+      return;
+    }
+
     setSelectedIssue(issue);
     let cur = issue.status;
     if (!cur || cur === 'Open') cur = 'In Progress (1/4)';
@@ -282,7 +313,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setRootCause(matrix.root_cause || issue.root_cause || '');
     setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
 
-    // In-Progress hanya untuk 1/4, 2/4, dan 3/4
     setStageDetails({
       '1/4': {
         progress: matrix['1/4']?.progress || (matrix['1/4'] ? '' : issue.progress_note || ''),
@@ -309,17 +339,35 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setTempLinkInput('');
   };
 
-  // Deep Link Auto-Opener: Memeriksa dan membuka modal isu jika diarahkan dari emel
+  // Deep Link Auto-Opener yang Mematuhi Hak Akses
   useEffect(() => {
     const autoOpenId = localStorage.getItem('open_issue_id');
-    if (autoOpenId && issues && issues.length > 0) {
+    if (autoOpenId && issues && issues.length > 0 && currentUser) {
       const targetIssue = issues.find((item) => String(item.id) === String(autoOpenId));
       if (targetIssue) {
-        handleOpenUpdateModal(targetIssue);
+        if (checkCanEdit(targetIssue)) {
+          // Buka modal jika Pelapor atau PIC
+          handleOpenUpdateModal(targetIssue);
+        } else {
+          // Jika bukan pelapor/PIC (contoh: CC boss), skrol terus ke kad tanpa modal edit
+          setTimeout(() => {
+            const cardElement = document.getElementById(`issue-card-${targetIssue.id}`);
+            if (cardElement) {
+              cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              cardElement.style.transition = 'box-shadow 0.5s ease, border-color 0.5s ease';
+              cardElement.style.borderColor = '#0d3b66';
+              cardElement.style.boxShadow = '0 0 12px rgba(13, 59, 102, 0.4)';
+              setTimeout(() => {
+                cardElement.style.borderColor = '#e0e0e0';
+                cardElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+              }, 4000);
+            }
+          }, 300);
+        }
         localStorage.removeItem('open_issue_id');
       }
     }
-  }, [issues]);
+  }, [issues, currentUser]);
 
   const maxUnlockedLevel = useMemo(() => {
     return STAGE_ORDER[modalStatus] || 1;
@@ -374,6 +422,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   const handleSaveProgressMatrix = async (e) => {
     e.preventDefault();
+    if (!checkCanEdit(selectedIssue)) {
+      alert('Unauthorized operation.');
+      return;
+    }
+
     setUpdating(true);
     const now = new Date().toISOString();
 
@@ -501,7 +554,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return periodFilter.replace(/[^a-zA-Z0-9]/g, '_');
   }, [periodFilter, periodOptions]);
 
-  // Export to Native Excel (.xlsx) dengan status Harvey Ball dan auto multi-line Progress & Remarks (1/4 - 3/4)
+  // Export to Native Excel (.xlsx)
   const handleExportToExcel = () => {
     if (filteredIssues.length === 0) {
       alert('No issue data available to export with the current filters.');
@@ -841,19 +894,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           {filteredIssues.map((issue) => {
             const statusInfo = getStatusDetails(issue.status);
             const manualDate = issue.date_time || issue.created_at;
-
-            const currentUserName =
-              currentUser?.user_metadata?.full_name ||
-              currentUser?.user_metadata?.name ||
-              currentUser?.email?.split('@')[0] ||
-              '';
-
-            const isOwner =
-              Boolean(currentUser) &&
-              ((issue.user_id && issue.user_id === currentUser.id) ||
-                (issue.user_email && issue.user_email.toLowerCase() === currentUser.email?.toLowerCase()) ||
-                (issue.staff_name && currentUserName && issue.staff_name.trim().toLowerCase() === currentUserName.trim().toLowerCase()));
-
+            const isOwnerOrPic = checkCanEdit(issue);
             const matrix = issue.progress_matrix || {};
 
             return (
@@ -940,7 +981,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                           <span style={{ fontWeight: 'bold', color: '#0d3b66' }}>
                             {formatDateOnly(issue.estimated_closing)}
                           </span>
-                          {isOwner && (
+                          {isOwnerOrPic && (
                             <button
                               onClick={() => {
                                 setEditingEstClosingId(issue.id);
@@ -1025,7 +1066,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </a>
                     )}
 
-                    {isOwner ? (
+                    {isOwnerOrPic ? (
                       <>
                         <button
                           onClick={() => handleOpenUpdateModal(issue)}
