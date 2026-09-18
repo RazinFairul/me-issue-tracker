@@ -44,12 +44,12 @@ serve(async (req: Request) => {
     const gmailUser = Deno.env.get("GMAIL_USER") ?? "";
     const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
 
-    // Senarai 3 penerima salinan (CC)
+    // Senarai penerima salinan (CC)
     const ccEmails = [
       Deno.env.get("BOSS_EMAIL") || "KARIMM@proton.com",
-      "UmarFahami@proton.com", // Sila tukar kepada alamat emel kedua anda
+      "UmarFahami@proton.com",
       "Norridzuanmt@proton.com",
-      "NORFAEMS@proton.com"  // Sila tukar kepada alamat emel ketiga anda
+      "NORFAEMS@proton.com",
     ].filter(Boolean);
 
     if (!gmailUser || !gmailAppPassword) {
@@ -154,6 +154,9 @@ serve(async (req: Request) => {
         const subject = `[${tagLabel}] Issue: ${issue.what_issue || "Pending Issue"}`;
         const reporterName = issue.staff_name || issue.staff_id || "-";
 
+        // Pautan terus ke isu tertentu menggunakan ID isu
+        const directIssueUrl = `${APP_URL}/?issueId=${issue.id}`;
+
         const htmlContent = '<div style="font-family: Arial, sans-serif; padding: 24px; color: #333333; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #ffffff;">' +
           `<h2 style="color: ${headerColor}; margin-top: 0; margin-bottom: 12px; font-size: 20px;">${titleHeader}</h2>` +
           `<p style="font-size: 14px; line-height: 1.5; margin-bottom: 18px;">${descriptionText}</p>` +
@@ -169,9 +172,9 @@ serve(async (req: Request) => {
             'Please update the issue status to <strong>Closed</strong> in the ME Data Tracker system once the issue has been resolved.' +
           '</p>' +
           '<div style="text-align: center; margin: 25px 0;">' +
-            `<a href="${APP_URL}" target="_blank" style="background-color: ${btnColor}; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">Open ME Issue Tracker ↗</a>` +
+            `<a href="${directIssueUrl}" target="_blank" style="background-color: ${btnColor}; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">Open This Issue Directly ↗</a>` +
           '</div>' +
-          `<p style="font-size: 13px; color: #475569; text-align: center; margin-top: 10px;">Or copy link: <a href="${APP_URL}" style="color: #2563eb;">${APP_URL}</a></p>` +
+          `<p style="font-size: 13px; color: #475569; text-align: center; margin-top: 10px;">Or copy link: <a href="${directIssueUrl}" style="color: #2563eb;">${directIssueUrl}</a></p>` +
           '<hr style="border: none; border-top: 1px solid #e2e8f0; margin-top: 25px;" />' +
           '<p style="font-size: 11px; color: #94a3b8; text-align: center; margin-bottom: 0;">Manufacturing Engineering - Data Tracker System</p>' +
         '</div>';
