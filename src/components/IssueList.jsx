@@ -49,6 +49,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [activeStageTab, setActiveStageTab] = useState('1/4');
   const [tempLinkInput, setTempLinkInput] = useState('');
   const [updating, setUpdating] = useState(false);
+  const [hasRestoredModalDraft, setHasRestoredModalDraft] = useState(false);
 
   // Ref untuk memastikan deep link diproses sekali sahaja
   const deepLinkProcessedRef = useRef(false);
@@ -103,6 +104,21 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     fetchIssues();
     fetchMasterData();
   }, [refreshTrigger]);
+
+  // Auto-simpan draf kemaskini ke localStorage semasa pengguna menaip
+  useEffect(() => {
+    if (!selectedIssue) return;
+
+    const draftPayload = {
+      modalStatus,
+      rootCause,
+      countermeasure,
+      stageDetails,
+      activeStageTab
+    };
+
+    localStorage.setItem(`draft_update_${selectedIssue.id}`, JSON.stringify(draftPayload));
+  }, [selectedIssue, modalStatus, rootCause, countermeasure, stageDetails, activeStageTab]);
 
   const handleGroupFilterChange = (e) => {
     setGroupFilter(e.target.value);
@@ -226,6 +242,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       alert('Failed to delete issue: ' + error.message);
       fetchIssues();
     } else {
+      localStorage.removeItem(`draft_update_${issue.id}`);
       alert('Issue deleted successfully!');
     }
   };
@@ -304,13 +321,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }
   };
 
-  const handleOpenUpdateModal = (issue) => {
-    if (!checkCanEdit(issue)) {
-      alert('View only: Only the original reporter can update this issue.');
-      return;
-    }
-
-    setSelectedIssue(issue);
+  const loadOriginalIssueData = (issue) => {
     let cur = issue.status;
     if (!cur || cur === 'Open') cur = 'In Progress (1/4)';
     if (cur === 'Completed' || cur === 'Complete' || cur === 'Closed') cur = 'Closed (4/4)';
@@ -343,8 +354,47 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     if (cur.includes('2/4')) activeStage = '2/4';
     if (cur.includes('3/4') || cur.includes('4/4')) activeStage = '3/4';
     setActiveStageTab(activeStage);
+  };
 
+  const handleOpenUpdateModal = (issue) => {
+    if (!checkCanEdit(issue)) {
+      alert('View only: Only the original reporter can update this issue.');
+      return;
+    }
+
+    setSelectedIssue(issue);
     setTempLinkInput('');
+
+    // Semak jika terdapat draf tempatan bagi isu ini
+    const savedDraftRaw = localStorage.getItem(`draft_update_${issue.id}`);
+    if (savedDraftRaw) {
+      try {
+        const draft = JSON.parse(savedDraftRaw);
+        setModalStatus(draft.modalStatus || issue.status || 'In Progress (1/4)');
+        setRootCause(draft.rootCause ?? '');
+        setCountermeasure(draft.countermeasure ?? '');
+        setStageDetails(draft.stageDetails || DEFAULT_STAGES);
+        setActiveStageTab(draft.activeStageTab || '1/4');
+        setHasRestoredModalDraft(true);
+        return;
+      } catch (err) {
+        console.error('Failed to parse update modal draft:', err);
+      }
+    }
+
+    // Jika tiada draf tersimpan, muat data asal pangkalan data
+    setHasRestoredModalDraft(false);
+    loadOriginalIssueData(issue);
+  };
+
+  const handleClearModalDraft = () => {
+    if (!selectedIssue) return;
+    const confirmClear = window.confirm('Discard local draft and reload saved data?');
+    if (!confirmClear) return;
+
+    localStorage.removeItem(`draft_update_${selectedIssue.id}`);
+    setHasRestoredModalDraft(false);
+    loadOriginalIssueData(selectedIssue);
   };
 
   // Deep Link Auto-Opener: Penyegerakan mantap selepas log masuk
@@ -476,6 +526,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     if (error) {
       alert('Failed to update progress: ' + error.message);
     } else {
+      // Padam draf tempatan selepas berjaya menyimpan rekod ke Supabase
+      localStorage.removeItem(`draft_update_${selectedIssue.id}`);
+      setHasRestoredModalDraft(false);
+
       alert('Progress updated successfully!');
       setSelectedIssue(null);
       fetchIssues();
@@ -1134,9 +1188,33 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               </button>
             </div>
 
-            <p style={{ fontSize: '13px', color: '#555', marginBottom: '15px' }}>
-              <b>Issue:</b> {selectedIssue.what_issue}
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '8px' }}>
+              <p style={{ fontSize: '13px', color: '#555', margin: 0 }}>
+                <b>Issue:</b> {selectedIssue.what_issue}
+              </p>
+              {hasRestoredModalDraft && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', color: '#0284c7', backgroundColor: '#e0f2fe', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                    📝 Draft Loaded
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleClearModalDraft}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#dc2626',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    Clear Draft
+                  </button>
+                </div>
+              )}
+            </div>
 
             <form onSubmit={handleSaveProgressMatrix}>
               
