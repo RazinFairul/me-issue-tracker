@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import imageCompression from 'browser-image-compression';
 
+const DRAFT_STORAGE_KEY = 'draft_create_new_issue';
+
 export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [whatIssue, setWhatIssue] = useState('');
   const [description, setDescription] = useState('');
@@ -20,6 +22,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
 
   const [loading, setLoading] = useState(false);
   const [compressing, setCompressing] = useState(false);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
 
   // Dynamic stations state
   const [stationList, setStationList] = useState([]);
@@ -36,6 +39,94 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
   const [variantLoading, setVariantLoading] = useState(false);
 
   const fileInputRef = useRef(null);
+
+  // 1. Pulihkan draf daripada localStorage semasa komponen mula dimuatkan
+  useEffect(() => {
+    const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (savedDraft) {
+      try {
+        const parsed = JSON.parse(savedDraft);
+        if (parsed.whatIssue) setWhatIssue(parsed.whatIssue);
+        if (parsed.description) setDescription(parsed.description);
+        if (parsed.groupName) setGroupName(parsed.groupName);
+        if (parsed.location) setLocation(parsed.location);
+        if (parsed.engineVariant) setEngineVariant(parsed.engineVariant);
+        if (parsed.pic) setPic(parsed.pic);
+        if (parsed.dateTime) setDateTime(parsed.dateTime);
+        if (parsed.classification) setClassification(parsed.classification);
+        if (parsed.estimatedClosing) setEstimatedClosing(parsed.estimatedClosing);
+        if (Array.isArray(parsed.linkList)) setLinkList(parsed.linkList);
+        setHasRestoredDraft(true);
+      } catch (err) {
+        console.error('Failed to parse saved draft:', err);
+      }
+    }
+  }, []);
+
+  // 2. Simpan draf ke localStorage setiap kali ada medan teks yang berubah
+  useEffect(() => {
+    const draftPayload = {
+      whatIssue,
+      description,
+      groupName,
+      location,
+      engineVariant,
+      pic,
+      dateTime,
+      classification,
+      estimatedClosing,
+      linkList,
+    };
+
+    const hasAnyContent = Boolean(
+      whatIssue ||
+      description ||
+      groupName ||
+      location ||
+      engineVariant ||
+      pic ||
+      dateTime ||
+      classification ||
+      estimatedClosing ||
+      linkList.length > 0
+    );
+
+    if (hasAnyContent) {
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftPayload));
+    }
+  }, [
+    whatIssue,
+    description,
+    groupName,
+    location,
+    engineVariant,
+    pic,
+    dateTime,
+    classification,
+    estimatedClosing,
+    linkList,
+  ]);
+
+  // Fungsi mengosongkan draf secara manual
+  const handleClearDraft = () => {
+    const confirmClear = window.confirm('Are you sure you want to clear this draft and reset all fields?');
+    if (!confirmClear) return;
+
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    setWhatIssue('');
+    setDescription('');
+    setGroupName('');
+    setLocation('');
+    setEngineVariant('');
+    setPic('');
+    setDateTime('');
+    setClassification('');
+    setEstimatedClosing('');
+    setLinkList([]);
+    setTempLinkInput('');
+    handleRemoveFile();
+    setHasRestoredDraft(false);
+  };
 
   // Fetch stations from Supabase table based on selected Group
   useEffect(() => {
@@ -376,7 +467,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
           staff_name: autoStaffName,
           staff_id: user?.user_metadata?.staff_id || null,
           file_url: fileUrl,
-          onedrive_link: linkList.length > 0 ? linkList[0] : null, // Primary fallback link
+          onedrive_link: linkList.length > 0 ? linkList[0] : null,
           progress_matrix: initialProgressMatrix,
           user_id: user.id,
           user_email: user.email,
@@ -387,6 +478,9 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
       if (insertError) {
         throw insertError;
       }
+
+      // 3. Padam draf setelah rekod berjaya dimasukkan ke Supabase
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
 
       alert('Issue submitted successfully!');
 
@@ -404,7 +498,31 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
 
   return (
     <div style={{ padding: '10px 20px 30px', maxWidth: '600px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
-      <h2 style={{ color: '#0d3b66', marginTop: '0', marginBottom: '20px' }}>Open Issue</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+        <h2 style={{ color: '#0d3b66', margin: 0 }}>Open Issue</h2>
+        {hasRestoredDraft && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '12px', color: '#0284c7', backgroundColor: '#e0f2fe', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+              📝 Draft Loaded
+            </span>
+            <button
+              type="button"
+              onClick={handleClearDraft}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#dc2626',
+                fontSize: '12px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                textDecoration: 'underline'
+              }}
+            >
+              Clear Draft
+            </button>
+          </div>
+        )}
+      </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         
@@ -850,8 +968,8 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
               boxSizing: 'border-box', 
               backgroundColor: '#fff', 
               cursor: 'pointer', 
-              color: classification ? '#000' : '#888',
-              fontSize: '16px'
+              color: classification ? '#000' : '#888', 
+              fontSize: '16px' 
             }}
           >
             <option value="" disabled hidden>Choose Issue Classification</option>
@@ -888,7 +1006,7 @@ export default function CreateIssue({ onBackToDashboard, onIssueCreated }) {
                 borderRadius: '5px', 
                 border: '1px solid #ccc', 
                 boxSizing: 'border-box', 
-                backgroundColor: '#fff'
+                backgroundColor: '#fff' 
               }}
             />
             {file && (
