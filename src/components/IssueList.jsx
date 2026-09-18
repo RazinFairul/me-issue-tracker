@@ -172,30 +172,30 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return Array.from(new Set(issues.map((i) => i.staff_name || i.staff_id).filter(Boolean))).sort();
   }, [issues]);
 
-  // Fungsi semakan kebenaran (Hanya Pemilik/Pelapor ATAU PIC boleh kemaskini)
+  // HANYA PELAPOR ASAL (REPORTER) SAHAJA YANG DIBENARKAN MENGUBAH / MEMADAM
   const checkCanEdit = (issue) => {
-    if (!currentUser) return false;
-    const currentUserName =
+    if (!currentUser || !issue) return false;
+
+    const currentUserName = (
       currentUser?.user_metadata?.full_name ||
       currentUser?.user_metadata?.name ||
       currentUser?.email?.split('@')[0] ||
-      '';
+      ''
+    ).toLowerCase().trim();
+
     const currentUserEmail = (currentUser?.email || '').toLowerCase().trim();
 
     const isReporter =
-      (issue.user_id && issue.user_id === currentUser.id) ||
+      (issue.user_id && String(issue.user_id) === String(currentUser.id)) ||
       (issue.user_email && issue.user_email.toLowerCase().trim() === currentUserEmail) ||
-      (issue.staff_name && currentUserName && issue.staff_name.trim().toLowerCase() === currentUserName.trim().toLowerCase());
+      (issue.staff_name && currentUserName && issue.staff_name.trim().toLowerCase() === currentUserName);
 
-    const isPic =
-      Boolean(issue.pic_email && issue.pic_email.toLowerCase().trim() === currentUserEmail);
-
-    return isReporter || isPic;
+    return Boolean(isReporter);
   };
 
   const handleDeleteIssue = async (issue) => {
     if (!checkCanEdit(issue)) {
-      alert('You do not have permission to delete this issue.');
+      alert('Unauthorized: Only the original reporter can delete this issue.');
       return;
     }
 
@@ -298,7 +298,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   const handleOpenUpdateModal = (issue) => {
     if (!checkCanEdit(issue)) {
-      alert('View only: You do not have permission to update this issue.');
+      alert('View only: Only the original reporter can update this issue.');
       return;
     }
 
@@ -339,35 +339,37 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setTempLinkInput('');
   };
 
-  // Deep Link Auto-Opener yang Mematuhi Hak Akses
+  // Deep Link Auto-Opener: Sekat modal jika bukan reporter
   useEffect(() => {
+    if (loading || !currentUser || !issues || issues.length === 0) return;
+
     const autoOpenId = localStorage.getItem('open_issue_id');
-    if (autoOpenId && issues && issues.length > 0 && currentUser) {
-      const targetIssue = issues.find((item) => String(item.id) === String(autoOpenId));
-      if (targetIssue) {
-        if (checkCanEdit(targetIssue)) {
-          // Buka modal jika Pelapor atau PIC
-          handleOpenUpdateModal(targetIssue);
-        } else {
-          // Jika bukan pelapor/PIC (contoh: CC boss), skrol terus ke kad tanpa modal edit
-          setTimeout(() => {
-            const cardElement = document.getElementById(`issue-card-${targetIssue.id}`);
-            if (cardElement) {
-              cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              cardElement.style.transition = 'box-shadow 0.5s ease, border-color 0.5s ease';
-              cardElement.style.borderColor = '#0d3b66';
-              cardElement.style.boxShadow = '0 0 12px rgba(13, 59, 102, 0.4)';
-              setTimeout(() => {
-                cardElement.style.borderColor = '#e0e0e0';
-                cardElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
-              }, 4000);
-            }
-          }, 300);
-        }
-        localStorage.removeItem('open_issue_id');
+    if (!autoOpenId) return;
+
+    const targetIssue = issues.find((item) => String(item.id) === String(autoOpenId));
+    if (targetIssue) {
+      if (checkCanEdit(targetIssue)) {
+        // Hanya buka modal jika akaun yang sedang aktif ialah PELAPOR ASAL
+        handleOpenUpdateModal(targetIssue);
+      } else {
+        // Jika bukan pelapor (PIC atau CC), hanya tatal (scroll) dan highlight pada kad
+        setTimeout(() => {
+          const cardElement = document.getElementById(`issue-card-${targetIssue.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            cardElement.style.transition = 'box-shadow 0.5s ease, border-color 0.5s ease';
+            cardElement.style.borderColor = '#0d3b66';
+            cardElement.style.boxShadow = '0 0 14px rgba(13, 59, 102, 0.45)';
+            setTimeout(() => {
+              cardElement.style.borderColor = '#e0e0e0';
+              cardElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+            }, 4000);
+          }
+        }, 300);
       }
+      localStorage.removeItem('open_issue_id');
     }
-  }, [issues, currentUser]);
+  }, [issues, currentUser, loading]);
 
   const maxUnlockedLevel = useMemo(() => {
     return STAGE_ORDER[modalStatus] || 1;
@@ -423,7 +425,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const handleSaveProgressMatrix = async (e) => {
     e.preventDefault();
     if (!checkCanEdit(selectedIssue)) {
-      alert('Unauthorized operation.');
+      alert('Unauthorized operation. Only the reporter can save changes.');
       return;
     }
 
@@ -894,7 +896,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           {filteredIssues.map((issue) => {
             const statusInfo = getStatusDetails(issue.status);
             const manualDate = issue.date_time || issue.created_at;
-            const isOwnerOrPic = checkCanEdit(issue);
+            const isReporterOnly = checkCanEdit(issue);
             const matrix = issue.progress_matrix || {};
 
             return (
@@ -981,7 +983,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                           <span style={{ fontWeight: 'bold', color: '#0d3b66' }}>
                             {formatDateOnly(issue.estimated_closing)}
                           </span>
-                          {isOwnerOrPic && (
+                          {isReporterOnly && (
                             <button
                               onClick={() => {
                                 setEditingEstClosingId(issue.id);
@@ -1066,7 +1068,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </a>
                     )}
 
-                    {isOwnerOrPic ? (
+                    {isReporterOnly ? (
                       <>
                         <button
                           onClick={() => handleOpenUpdateModal(issue)}
