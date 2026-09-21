@@ -760,40 +760,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     XLSX.writeFile(workbook, `Issues_Report_${groupLabel}_${currentPeriodLabel}_${today}.xlsx`);
   };
 
-  const handleTriggerBackToDashboard = () => {
-    clearDeepLinkUrl();
-    if (onBackToDashboard) {
-      onBackToDashboard();
-    }
-  };
-
   return (
     <div style={{ padding: '10px 20px', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
       
       {/* Header Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', backgroundColor: '#0d3b66', padding: '15px 20px', borderRadius: '8px', color: '#fff', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {onBackToDashboard && (
-            <button
-              onClick={handleTriggerBackToDashboard}
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: '6px',
-                padding: '6px 12px',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s'
-              }}
-              title="Return to Main Dashboard"
-            >
-              ← Back to Dashboard
-            </button>
-          )}
-          <h2 style={{ margin: 0, fontSize: '22px' }}>Issue List</h2>
-        </div>
+        <h2 style={{ margin: 0, fontSize: '22px' }}>Issue List</h2>
 
         <button
           onClick={handleExportToExcel}
