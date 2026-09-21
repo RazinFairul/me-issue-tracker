@@ -54,6 +54,15 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   // Ref untuk memastikan deep link diproses sekali sahaja
   const deepLinkProcessedRef = useRef(false);
 
+  // Fungsi utiliti untuk membersihkan URL daripada parameter ?issueId=...
+  const clearDeepLinkUrl = () => {
+    localStorage.removeItem('open_issue_id');
+    if (window.location.search.includes('issueId')) {
+      const cleanUrl = window.location.origin + window.location.pathname + window.location.hash;
+      window.history.replaceState(null, '', cleanUrl);
+    }
+  };
+
   useEffect(() => {
     const getCurrentUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -243,6 +252,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       fetchIssues();
     } else {
       localStorage.removeItem(`draft_update_${issue.id}`);
+      clearDeepLinkUrl();
       alert('Issue deleted successfully!');
     }
   };
@@ -387,6 +397,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     loadOriginalIssueData(issue);
   };
 
+  const handleCloseModal = () => {
+    setSelectedIssue(null);
+    clearDeepLinkUrl();
+  };
+
   const handleClearModalDraft = () => {
     if (!selectedIssue) return;
     const confirmClear = window.confirm('Discard local draft and reload saved data?');
@@ -397,7 +412,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     loadOriginalIssueData(selectedIssue);
   };
 
-  // Deep Link Auto-Opener: Penyegerakan mantap selepas log masuk
+  // Deep Link Auto-Opener: Penyegerakan mantap & penyelesaian isu mobile
   useEffect(() => {
     if (loading || !currentUser || !issues || issues.length === 0 || deepLinkProcessedRef.current) return;
 
@@ -409,7 +424,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     if (targetIssue) {
       deepLinkProcessedRef.current = true;
 
-      // Reset semua tapisan agar kad isu tidak tersembunyi
+      // Bersihkan URL dan localStorage serta-merta supaya mobile tidak tersekat
+      clearDeepLinkUrl();
+
+      // Reset semua tapisan agar kad isu sasaran tidak tersembunyi
       setSearchTerm('');
       setPeriodFilter('All');
       setStatusFilter('All');
@@ -436,8 +454,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           }
         }, 400);
       }
-
-      localStorage.removeItem('open_issue_id');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issues, currentUser, loading]);
@@ -529,6 +545,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       // Padam draf tempatan selepas berjaya menyimpan rekod ke Supabase
       localStorage.removeItem(`draft_update_${selectedIssue.id}`);
       setHasRestoredModalDraft(false);
+      clearDeepLinkUrl();
 
       alert('Progress updated successfully!');
       setSelectedIssue(null);
@@ -743,12 +760,40 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     XLSX.writeFile(workbook, `Issues_Report_${groupLabel}_${currentPeriodLabel}_${today}.xlsx`);
   };
 
+  const handleTriggerBackToDashboard = () => {
+    clearDeepLinkUrl();
+    if (onBackToDashboard) {
+      onBackToDashboard();
+    }
+  };
+
   return (
     <div style={{ padding: '10px 20px', maxWidth: '1280px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
       
       {/* Header Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', backgroundColor: '#0d3b66', padding: '15px 20px', borderRadius: '8px', color: '#fff', flexWrap: 'wrap', gap: '10px' }}>
-        <h2 style={{ margin: 0, fontSize: '22px' }}>Issue List</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {onBackToDashboard && (
+            <button
+              onClick={handleTriggerBackToDashboard}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+              title="Return to Main Dashboard"
+            >
+              ← Back to Dashboard
+            </button>
+          )}
+          <h2 style={{ margin: 0, fontSize: '22px' }}>Issue List</h2>
+        </div>
 
         <button
           onClick={handleExportToExcel}
@@ -1181,7 +1226,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               <h3 style={{ margin: 0, color: '#0d3b66', fontSize: '18px' }}>Update Progress & Action Details</h3>
               <button
                 type="button"
-                onClick={() => setSelectedIssue(null)}
+                onClick={handleCloseModal}
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#888' }}
               >
                 ✕
@@ -1391,7 +1436,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button
                   type="button"
-                  onClick={() => setSelectedIssue(null)}
+                  onClick={handleCloseModal}
                   style={{ padding: '8px 16px', border: 'none', backgroundColor: '#e2e8f0', color: '#333', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
                 >
                   Cancel
