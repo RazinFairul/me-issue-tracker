@@ -587,8 +587,14 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
       let matchesStatus = true;
       if (statusFilter !== 'All') {
-        if (statusFilter === 'Closed (4/4)') {
-          matchesStatus = issue.status === 'Closed' || issue.status === 'Closed (4/4)' || issue.status === 'Completed' || issue.status === 'Complete';
+        const rawStatus = (issue.status || '').toLowerCase().trim();
+        const isClosed = rawStatus === 'closed' || rawStatus.includes('4/4') || rawStatus === 'completed' || rawStatus === 'complete';
+
+        if (statusFilter === 'All In Progress') {
+          // Hanya ambil isu yang belum tutup (1/4, 2/4, 3/4 atau kosong)
+          matchesStatus = !isClosed;
+        } else if (statusFilter === 'Closed (4/4)') {
+          matchesStatus = isClosed;
         } else {
           matchesStatus = issue.status === statusFilter || (!issue.status && statusFilter === 'In Progress (1/4)');
         }
@@ -881,6 +887,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
               style={{ width: '100%', padding: '6px 4px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '11px', backgroundColor: '#fff', boxSizing: 'border-box', cursor: 'pointer' }}
             >
               <option value="All">All Statuses</option>
+              <option value="All In Progress">⏳ All In Progress (1/4 - 3/4)</option>
               <option value="In Progress (1/4)">◔ In Progress (1/4)</option>
               <option value="In Progress (2/4)">◑ In Progress (2/4)</option>
               <option value="In Progress (3/4)">◕ In Progress (3/4)</option>
