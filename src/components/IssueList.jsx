@@ -43,7 +43,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   // Update Modal State
   const [selectedIssue, setSelectedIssue] = useState(null);
-  const [modalStatus, setModalStatus] = useState('In Progress (2/4)');
+  const [modalStatus, setModalStatus] = useState('In Progress (1/4)');
   const [rootCause, setRootCause] = useState('');
   const [countermeasure, setCountermeasure] = useState('');
   const [stageDetails, setStageDetails] = useState(DEFAULT_STAGES);
@@ -113,7 +113,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     fetchMasterData();
   }, [refreshTrigger]);
 
-  // Auto-simpan draf kemaskini ke localStorage semasa pengguna menaip
+  // Auto-simpan draf kemaskini ke localStorage
   useEffect(() => {
     if (!selectedIssue) return;
 
@@ -176,7 +176,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     });
   }, [issues]);
 
-  // Selaraskan terus dengan jadual master 'stations' (199 stesen tepat)
   const filteredLocationOptions = useMemo(() => {
     let list = [];
     if (groupFilter === 'All' || groupFilter === 'IT') {
@@ -326,10 +325,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   // Muat data untuk Modal Kemas Kini
   const loadOriginalIssueData = (issue) => {
-    let cur = issue.status || 'In Progress (2/4)';
-    if (cur === 'Open' || cur === 'In Progress (1/4)') {
-      cur = 'In Progress (2/4)';
-    }
+    let cur = issue.status || 'In Progress (1/4)';
+    if (cur === 'Open') cur = 'In Progress (1/4)';
     if (cur === 'Completed' || cur === 'Complete' || cur === 'Closed') {
       cur = 'Closed (4/4)';
     }
@@ -340,10 +337,10 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setRootCause(matrix.root_cause || issue.root_cause || '');
     setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
 
-    // Data dari fasa
-    const s2_progress = matrix['2/4']?.progress || matrix['1/4']?.progress || issue.progress_note || '';
-    const s2_remark = matrix['2/4']?.remark || matrix['1/4']?.remark || '';
-    const s2_links = matrix['2/4']?.links?.length ? matrix['2/4'].links : (matrix['1/4']?.links || []);
+    // Fasa 1/4 sentiasa kosong untuk progress bertulis
+    const s2_progress = matrix['2/4']?.progress || '';
+    const s2_remark = matrix['2/4']?.remark || '';
+    const s2_links = matrix['2/4']?.links || [];
 
     const s3_progress = matrix['3/4']?.progress || '';
     const s3_remark = matrix['3/4']?.remark || '';
@@ -374,6 +371,27 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     else if (newStatus.includes('4/4')) targetStage = '4/4';
 
     setActiveStageTab(targetStage);
+
+    // Auto forward dari fasa sebelumnya jika fasa sasaran belum mempunyai isi
+    setStageDetails((prev) => {
+      if (newStatus === 'In Progress (1/4)') return prev;
+
+      const currentTarget = prev[targetStage];
+      const prevStageKey = targetStage === '4/4' ? '3/4' : '2/4';
+      const sourceStage = prev[prevStageKey];
+
+      if ((!currentTarget?.progress || currentTarget.progress.trim() === '') && sourceStage?.progress) {
+        return {
+          ...prev,
+          [targetStage]: {
+            progress: sourceStage.progress,
+            remark: currentTarget?.remark || sourceStage.remark || '',
+            links: (currentTarget?.links && currentTarget.links.length > 0) ? currentTarget.links : [...(sourceStage.links || [])]
+          }
+        };
+      }
+      return prev;
+    });
   };
 
   const handleOpenUpdateModal = (issue) => {
@@ -385,17 +403,15 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setSelectedIssue(issue);
     setTempLinkInput('');
 
-    // Muat data dari rekod asal
     loadOriginalIssueData(issue);
 
-    // Semak jika ada draf tempatan
     const savedDraftRaw = localStorage.getItem(`draft_update_${issue.id}`);
     if (savedDraftRaw) {
       try {
         const draft = JSON.parse(savedDraftRaw);
         if (draft.stageDetails) {
           setStageDetails(draft.stageDetails);
-          setModalStatus(draft.modalStatus || 'In Progress (2/4)');
+          setModalStatus(draft.modalStatus || issue.status || 'In Progress (1/4)');
           setRootCause(draft.rootCause ?? '');
           setCountermeasure(draft.countermeasure ?? '');
           setActiveStageTab(draft.activeStageTab || '2/4');
@@ -465,7 +481,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   }, [issues, currentUser, loading]);
 
   const maxUnlockedLevel = useMemo(() => {
-    return STAGE_ORDER[modalStatus] || 2;
+    return STAGE_ORDER[modalStatus] || 1;
   }, [modalStatus]);
 
   const isStageUnlocked = (stageKey) => {
@@ -515,7 +531,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }));
   };
 
-  // Butang Forward: Salin dari peringkat sebelumnya bila pengguna mahu
+  // Butang Forward manual dari fasa sebelumnya
   const handleCopyFromPrevious = () => {
     const prevStage = activeStageTab === '4/4' ? '3/4' : '2/4';
     const sourceData = stageDetails[prevStage];
@@ -1025,11 +1041,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             const isReporterOnly = checkCanEdit(issue);
             const matrix = issue.progress_matrix || {};
 
-            // Had peringkat yang dibenarkan papar mengikut status semasa
+            // Tahap status semasa isu
             const curStatus = issue.status || 'In Progress (1/4)';
             const maxStageLevel = STAGE_ORDER[curStatus] || 1;
 
-            // Fasa 2/4, 3/4, 4/4 sahaja (1/4 tiada paparan progress)
+            // Fasa 2/4, 3/4, 4/4 sahaja (Fasa 1/4 tidak mempunyai kotak tindakan)
             const stagesToDisplay = [
               { key: '2/4', level: 2, data: matrix['2/4'], label: 'In Progress 2/4:' },
               { key: '3/4', level: 3, data: matrix['3/4'], label: 'In Progress 3/4:' },
@@ -1144,12 +1160,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </div>
                     )}
 
-                    {/* Paparan Progress: Hanya fasa yang telah dicapai oleh isu sahaja yang dipaparkan */}
+                    {/* Paparan Progress: Hanya fasa yang dicapai sahaja yang dipaparkan */}
                     {stagesToDisplay.map(({ key, level, data, label }) => {
-                      // Sekat: Jangan papar fasa yang lebih tinggi daripada status semasa isu
                       if (level > maxStageLevel) return null;
-
-                      // Sekat: Jangan papar jika tiada sebarang tindakan ditulis
                       if (!data || (!data.progress && !data.remark && (!data.links || data.links.length === 0))) return null;
 
                       return (
@@ -1286,7 +1299,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
             <form onSubmit={handleSaveProgressMatrix}>
               
-              {/* Status Selector */}
+              {/* Status Selector: Mengandungi pilihan 1/4, 2/4, 3/4 & 4/4 */}
               <div style={{ marginBottom: '15px', backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '6px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px', color: '#0f172a' }}>
                   Current Closing Status:
@@ -1296,12 +1309,15 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   onChange={(e) => handleStatusChange(e.target.value)}
                   style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #0d3b66', fontSize: '13px', backgroundColor: '#fff', fontWeight: 'bold' }}
                 >
+                  <option value="In Progress (1/4)">◔ In Progress (1/4) (Newly Logged)</option>
                   <option value="In Progress (2/4)">◑ In Progress (2/4)</option>
                   <option value="In Progress (3/4)">◕ In Progress (3/4)</option>
                   <option value="Closed (4/4)">⚫ Closed (4/4)</option>
                 </select>
                 <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
-                  *Changing to higher progress unlocks the corresponding tab below.
+                  {modalStatus === 'In Progress (1/4)'
+                    ? '*Status 1/4 menandakan isu baru dibuka. Tukar ke fasa 2/4 ke atas untuk mengisi tindakan pembetulan.'
+                    : '*Fasa kemajuan unlocked mengikut status pilihan. Maklumat fasa sebelum akan disalin secara automatik.'}
                 </small>
               </div>
 
@@ -1371,7 +1387,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 })}
               </div>
 
-              {/* 3. Progress & Remark Inputs */}
+              {/* 3. Progress & Remark Inputs (2/4, 3/4, 4/4) */}
               <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '14px', marginBottom: '15px', backgroundColor: '#f8fafc' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
                   <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#0d3b66' }}>
