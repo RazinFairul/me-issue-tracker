@@ -52,7 +52,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   const [updating, setUpdating] = useState(false);
   const [hasRestoredModalDraft, setHasRestoredModalDraft] = useState(false);
 
-  // Ref untuk memastikan deep link diproses sekali sahaja
   const deepLinkProcessedRef = useRef(false);
 
   const clearDeepLinkUrl = () => {
@@ -114,7 +113,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     fetchMasterData();
   }, [refreshTrigger]);
 
-  // Auto-simpan draf kemaskini ke localStorage
+  // Auto-simpan draf kemaskini ke localStorage semasa pengguna menaip
   useEffect(() => {
     if (!selectedIssue) return;
 
@@ -177,6 +176,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     });
   }, [issues]);
 
+  // Selaraskan terus dengan jadual master 'stations' (199 stesen tepat)
   const filteredLocationOptions = useMemo(() => {
     let list = [];
     if (groupFilter === 'All' || groupFilter === 'IT') {
@@ -324,62 +324,48 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }
   };
 
-  // Muat data & Auto-Forward kandungan secara teratur
+  // Muat data untuk Modal Kemas Kini
   const loadOriginalIssueData = (issue) => {
-    let cur = issue.status || 'In Progress (1/4)';
-    if (cur === 'Open') cur = 'In Progress (1/4)';
+    let cur = issue.status || 'In Progress (2/4)';
+    if (cur === 'Open' || cur === 'In Progress (1/4)') {
+      cur = 'In Progress (2/4)';
+    }
     if (cur === 'Completed' || cur === 'Complete' || cur === 'Closed') {
       cur = 'Closed (4/4)';
     }
-
-    // Jika sedang 1/4, cadangkan pengguna untuk kemaskini ke 2/4
-    let targetModalStatus = cur;
-    if (cur === 'In Progress (1/4)') {
-      targetModalStatus = 'In Progress (2/4)';
-    }
-    setModalStatus(targetModalStatus);
+    setModalStatus(cur);
 
     const matrix = issue.progress_matrix && typeof issue.progress_matrix === 'object' ? issue.progress_matrix : {};
 
     setRootCause(matrix.root_cause || issue.root_cause || '');
     setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
 
-    // Data Peringkat 1/4
-    const s1_progress = matrix['1/4']?.progress || issue.progress_note || '';
-    const s1_remark = matrix['1/4']?.remark || '';
-    const s1_links = matrix['1/4']?.links || [];
+    // Data dari fasa
+    const s2_progress = matrix['2/4']?.progress || matrix['1/4']?.progress || issue.progress_note || '';
+    const s2_remark = matrix['2/4']?.remark || matrix['1/4']?.remark || '';
+    const s2_links = matrix['2/4']?.links?.length ? matrix['2/4'].links : (matrix['1/4']?.links || []);
 
-    // Data Peringkat 2/4 (Jika kosong, auto-forward daripada 1/4)
-    const s2_progress = matrix['2/4']?.progress || s1_progress;
-    const s2_remark = matrix['2/4']?.remark || s1_remark;
-    const s2_links = (matrix['2/4']?.links && matrix['2/4'].links.length > 0) ? matrix['2/4'].links : s1_links;
+    const s3_progress = matrix['3/4']?.progress || '';
+    const s3_remark = matrix['3/4']?.remark || '';
+    const s3_links = matrix['3/4']?.links || [];
 
-    // Data Peringkat 3/4 (Jika kosong, auto-forward daripada 2/4)
-    const s3_progress = matrix['3/4']?.progress || s2_progress;
-    const s3_remark = matrix['3/4']?.remark || s2_remark;
-    const s3_links = (matrix['3/4']?.links && matrix['3/4'].links.length > 0) ? matrix['3/4'].links : s2_links;
+    const s4_progress = matrix['4/4']?.progress || '';
+    const s4_remark = matrix['4/4']?.remark || '';
+    const s4_links = matrix['4/4']?.links || [];
 
-    // Data Peringkat 4/4 (Jika kosong, auto-forward daripada 3/4)
-    const s4_progress = matrix['4/4']?.progress || s3_progress;
-    const s4_remark = matrix['4/4']?.remark || s3_remark;
-    const s4_links = (matrix['4/4']?.links && matrix['4/4'].links.length > 0) ? matrix['4/4'].links : s3_links;
-
-    const newStages = {
-      '1/4': { progress: s1_progress, remark: s1_remark, links: s1_links },
+    setStageDetails({
+      '1/4': { progress: '', remark: '', links: [] },
       '2/4': { progress: s2_progress, remark: s2_remark, links: s2_links },
       '3/4': { progress: s3_progress, remark: s3_remark, links: s3_links },
       '4/4': { progress: s4_progress, remark: s4_remark, links: s4_links }
-    };
-
-    setStageDetails(newStages);
+    });
 
     let activeStage = '2/4';
-    if (targetModalStatus.includes('3/4')) activeStage = '3/4';
-    if (targetModalStatus.includes('4/4')) activeStage = '4/4';
+    if (cur.includes('3/4')) activeStage = '3/4';
+    if (cur.includes('4/4')) activeStage = '4/4';
     setActiveStageTab(activeStage);
   };
 
-  // Pengendali penukaran status dropdown: automatik bawa teks ke fasa baru jika masih kosong
   const handleStatusChange = (newStatus) => {
     setModalStatus(newStatus);
 
@@ -388,25 +374,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     else if (newStatus.includes('4/4')) targetStage = '4/4';
 
     setActiveStageTab(targetStage);
-
-    setStageDetails((prev) => {
-      const currentTarget = prev[targetStage];
-      const prevStageKey = targetStage === '4/4' ? '3/4' : targetStage === '3/4' ? '2/4' : '1/4';
-      const sourceStage = prev[prevStageKey];
-
-      // Jika fasa sasaran belum mempunyai progress, salin secara terus daripada fasa sebelum
-      if ((!currentTarget?.progress || currentTarget.progress.trim() === '') && sourceStage?.progress) {
-        return {
-          ...prev,
-          [targetStage]: {
-            progress: sourceStage.progress,
-            remark: currentTarget?.remark || sourceStage.remark || '',
-            links: (currentTarget?.links && currentTarget.links.length > 0) ? currentTarget.links : [...(sourceStage.links || [])]
-          }
-        };
-      }
-      return prev;
-    });
   };
 
   const handleOpenUpdateModal = (issue) => {
@@ -418,28 +385,16 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setSelectedIssue(issue);
     setTempLinkInput('');
 
-    // Muat data awal dengan auto-forward
+    // Muat data dari rekod asal
     loadOriginalIssueData(issue);
 
-    // Semak jika ada draf terkini dalam localStorage
+    // Semak jika ada draf tempatan
     const savedDraftRaw = localStorage.getItem(`draft_update_${issue.id}`);
     if (savedDraftRaw) {
       try {
         const draft = JSON.parse(savedDraftRaw);
         if (draft.stageDetails) {
-          setStageDetails((prev) => {
-            const merged = { ...prev };
-            ['2/4', '3/4', '4/4'].forEach((stg) => {
-              const prevKey = stg === '4/4' ? '3/4' : stg === '3/4' ? '2/4' : '1/4';
-              if (draft.stageDetails[stg]?.progress) {
-                merged[stg] = draft.stageDetails[stg];
-              } else if (!merged[stg]?.progress && merged[prevKey]?.progress) {
-                merged[stg] = { ...merged[prevKey] };
-              }
-            });
-            return merged;
-          });
-
+          setStageDetails(draft.stageDetails);
           setModalStatus(draft.modalStatus || 'In Progress (2/4)');
           setRootCause(draft.rootCause ?? '');
           setCountermeasure(draft.countermeasure ?? '');
@@ -447,7 +402,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
           setHasRestoredModalDraft(true);
         }
       } catch (err) {
-        console.error('Failed to parse update modal draft:', err);
+        console.error('Failed to parse draft:', err);
       }
     }
   };
@@ -560,9 +515,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }));
   };
 
-  // Butang salin manual jika pengguna mahu menyalin kandungan peringkat sebelumnya
+  // Butang Forward: Salin dari peringkat sebelumnya bila pengguna mahu
   const handleCopyFromPrevious = () => {
-    const prevStage = activeStageTab === '4/4' ? '3/4' : activeStageTab === '3/4' ? '2/4' : '1/4';
+    const prevStage = activeStageTab === '4/4' ? '3/4' : '2/4';
     const sourceData = stageDetails[prevStage];
 
     if (!sourceData || (!sourceData.progress && !sourceData.remark)) {
@@ -593,7 +548,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const structuredPayload = {
       root_cause: rootCause,
       countermeasure: countermeasure,
-      '1/4': stageDetails['1/4'],
+      '1/4': { progress: '', remark: '', links: [] },
       '2/4': stageDetails['2/4'],
       '3/4': stageDetails['3/4'],
       '4/4': stageDetails['4/4']
@@ -753,12 +708,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       const rawDate = i.date_time || i.created_at;
       const pMatrix = i.progress_matrix || {};
 
-      const progressList = ['1/4', '2/4', '3/4', '4/4']
+      const progressList = ['2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.progress)
         .map((stg) => `${stg === '4/4' ? 'Closed 4/4' : `In Progress ${stg}`}: ${pMatrix[stg].progress}`);
       const formattedProgress = progressList.length > 0 ? progressList.join('\r\n') : '-';
 
-      const remarkList = ['1/4', '2/4', '3/4', '4/4']
+      const remarkList = ['2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.remark)
         .map((stg) => `${stg === '4/4' ? 'Closed 4/4' : `In Progress ${stg}`}: ${pMatrix[stg].remark}`);
       const formattedRemarks = remarkList.length > 0 ? remarkList.join('\r\n') : '-';
@@ -791,7 +746,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
     worksheet['!rows'] = rowHeights;
 
-    // Hanya warnakan baris tajuk paling atas (Baris 1)
     Object.keys(worksheet).forEach((cell) => {
       if (cell.startsWith('!')) return;
 
@@ -1071,11 +1025,16 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             const isReporterOnly = checkCanEdit(issue);
             const matrix = issue.progress_matrix || {};
 
-            // Logik paparan kad: Ambil data peringkat sedia ada, atau fallback jika ia fasa terkini
-            const s1 = matrix['1/4'] || { progress: issue.progress_note || '', remark: '', links: [] };
-            const s2 = matrix['2/4'] || {};
-            const s3 = matrix['3/4'] || {};
-            const s4 = matrix['4/4'] || {};
+            // Had peringkat yang dibenarkan papar mengikut status semasa
+            const curStatus = issue.status || 'In Progress (1/4)';
+            const maxStageLevel = STAGE_ORDER[curStatus] || 1;
+
+            // Fasa 2/4, 3/4, 4/4 sahaja (1/4 tiada paparan progress)
+            const stagesToDisplay = [
+              { key: '2/4', level: 2, data: matrix['2/4'], label: 'In Progress 2/4:' },
+              { key: '3/4', level: 3, data: matrix['3/4'], label: 'In Progress 3/4:' },
+              { key: '4/4', level: 4, data: matrix['4/4'], label: 'Closed (4/4):' },
+            ];
 
             return (
               <div
@@ -1185,14 +1144,14 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </div>
                     )}
 
-                    {/* Paparan Progress mengikut data sebenar pada kad */}
-                    {[
-                      { key: '1/4', data: s1, label: 'In Progress 1/4:' },
-                      { key: '2/4', data: s2, label: 'In Progress 2/4:' },
-                      { key: '3/4', data: s3, label: 'In Progress 3/4:' },
-                      { key: '4/4', data: s4, label: 'Closed (4/4):' }
-                    ].map(({ key, data, label }) => {
+                    {/* Paparan Progress: Hanya fasa yang telah dicapai oleh isu sahaja yang dipaparkan */}
+                    {stagesToDisplay.map(({ key, level, data, label }) => {
+                      // Sekat: Jangan papar fasa yang lebih tinggi daripada status semasa isu
+                      if (level > maxStageLevel) return null;
+
+                      // Sekat: Jangan papar jika tiada sebarang tindakan ditulis
                       if (!data || (!data.progress && !data.remark && (!data.links || data.links.length === 0))) return null;
+
                       return (
                         <div key={key} style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 8px', borderRadius: '4px', marginTop: '4px', fontSize: '11px' }}>
                           <span style={{ fontWeight: 'bold', color: key === '4/4' ? '#16a34a' : '#0369a1' }}>
@@ -1327,7 +1286,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
             <form onSubmit={handleSaveProgressMatrix}>
               
-              {/* Status Selector - Dihubungkan ke handleStatusChange */}
+              {/* Status Selector */}
               <div style={{ marginBottom: '15px', backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '6px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px', color: '#0f172a' }}>
                   Current Closing Status:
@@ -1342,7 +1301,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   <option value="Closed (4/4)">⚫ Closed (4/4)</option>
                 </select>
                 <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
-                  *Changing to higher progress unlocks the corresponding tab below and copies previous progress automatically.
+                  *Changing to higher progress unlocks the corresponding tab below.
                 </small>
               </div>
 
@@ -1419,24 +1378,26 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                     {activeStageTab === '4/4' ? 'Action & Verification for Closed (4/4):' : `Progress & Remark for In Progress ${activeStageTab}:`}
                   </span>
 
-                  {/* Butang Salin / Forward dari peringkat sebelumnya */}
-                  <button
-                    type="button"
-                    onClick={handleCopyFromPrevious}
-                    style={{
-                      backgroundColor: '#e0f2fe',
-                      color: '#0369a1',
-                      border: '1px solid #bae6fd',
-                      borderRadius: '4px',
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer'
-                    }}
-                    title="Copy details from previous stage to edit"
-                  >
-                    ⏩ Forward from {activeStageTab === '4/4' ? '3/4' : activeStageTab === '3/4' ? '2/4' : '1/4'}
-                  </button>
+                  {/* Butang Forward dari peringkat sebelumnya */}
+                  {activeStageTab !== '2/4' && (
+                    <button
+                      type="button"
+                      onClick={handleCopyFromPrevious}
+                      style={{
+                        backgroundColor: '#e0f2fe',
+                        color: '#0369a1',
+                        border: '1px solid #bae6fd',
+                        borderRadius: '4px',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer'
+                      }}
+                      title="Copy details from previous stage to edit"
+                    >
+                      ⏩ Forward from {activeStageTab === '4/4' ? '3/4' : '2/4'}
+                    </button>
+                  )}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px', marginBottom: '10px' }}>
