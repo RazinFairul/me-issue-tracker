@@ -337,7 +337,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setRootCause(matrix.root_cause || issue.root_cause || '');
     setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
 
-    // Fasa 1/4 sentiasa kosong untuk progress bertulis
+    // Fasa 1/4 sentiasa kosong tanpa input progress/remark bertulis
     const s2_progress = matrix['2/4']?.progress || '';
     const s2_remark = matrix['2/4']?.remark || '';
     const s2_links = matrix['2/4']?.links || [];
@@ -372,7 +372,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     setActiveStageTab(targetStage);
 
-    // Auto forward dari fasa sebelumnya jika fasa sasaran belum mempunyai isi
+    // Auto-forward hanya jika fasa sasaran kosong dan status bukan 1/4
     setStageDetails((prev) => {
       if (newStatus === 'In Progress (1/4)') return prev;
 
@@ -531,7 +531,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }));
   };
 
-  // Butang Forward manual dari fasa sebelumnya
   const handleCopyFromPrevious = () => {
     const prevStage = activeStageTab === '4/4' ? '3/4' : '2/4';
     const sourceData = stageDetails[prevStage];
@@ -1299,7 +1298,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
             <form onSubmit={handleSaveProgressMatrix}>
               
-              {/* Status Selector: Mengandungi pilihan 1/4, 2/4, 3/4 & 4/4 */}
+              {/* Status Selector: Pilihan dari 1/4 hingga 4/4 */}
               <div style={{ marginBottom: '15px', backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '6px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px', color: '#0f172a' }}>
                   Current Closing Status:
@@ -1316,8 +1315,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 </select>
                 <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
                   {modalStatus === 'In Progress (1/4)'
-                    ? '*Status 1/4 menandakan isu baru dibuka. Tukar ke fasa 2/4 ke atas untuk mengisi tindakan pembetulan.'
-                    : '*Fasa kemajuan unlocked mengikut status pilihan. Maklumat fasa sebelum akan disalin secara automatik.'}
+                    ? '*Status 1/4 menandakan isu baru dibuka tanpa tindakan. Tukar ke 2/4 ke atas untuk mengemas kini progress.'
+                    : '*Peringkat unlocked mengikut status. Isi fasa sebelum akan disalin secara automatik jika fasa seterusnya kosong.'}
                 </small>
               </div>
 
