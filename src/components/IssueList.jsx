@@ -177,7 +177,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     });
   }, [issues]);
 
-  // Selaraskan terus dengan jadual master 'stations' (199 stesen tepat)
+  // Selaraskan terus dengan jadual master 'stations' (199 stesen tepat)[cite: 14]
   const filteredLocationOptions = useMemo(() => {
     let list = [];
     if (groupFilter === 'All' || groupFilter === 'IT') {
@@ -586,7 +586,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         const isClosed = rawStatus === 'closed' || rawStatus.includes('4/4') || rawStatus === 'completed' || rawStatus === 'complete';
 
         if (statusFilter === 'All In Progress') {
-          // Menapis semua isu yang belum ditutup (1/4, 2/4, 3/4)
+          // Menapis semua isu yang belum ditutup (1/4, 2/4, 3/4)[cite: 12]
           matchesStatus = !isClosed;
         } else if (statusFilter === 'Closed (4/4)') {
           matchesStatus = isClosed;
@@ -716,10 +716,13 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
     worksheet['!rows'] = rowHeights;
 
+    // Memastikan hanya baris tajuk paling atas (Baris 1) yang diwarnakan biru korporat[cite: 15]
     Object.keys(worksheet).forEach((cell) => {
       if (cell.startsWith('!')) return;
 
-      if (cell.endsWith('1')) {
+      const isHeaderRow = /^[A-Z]+1$/.test(cell);
+
+      if (isHeaderRow) {
         worksheet[cell].s = {
           font: { bold: true, color: { rgb: "FFFFFF" } },
           fill: { fgColor: { rgb: "0D3B66" } },
