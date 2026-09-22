@@ -162,9 +162,11 @@ export default function DashboardAnalytics() {
     let inProgressCount = 0;
     let closedCount = 0;
     const locationMap = {};
-    let agingUnder3 = 0;
-    let aging3to7 = 0;
-    let agingOver7 = 0;
+    
+    // Klasifikasi Aging berdasarkan Estimated Closing Date
+    let agingHealthy = 0; // On Track (> 3 hari tersisa)
+    let agingDueSoon = 0; // Moderate / Due Soon (0 - 3 hari tersisa)
+    let agingOverdue = 0; // Critical Overdue (Melewati batas waktu penutupan)
 
     fullyFiltered.forEach((item) => {
       const isDone = isClosedStatus(item.status);
@@ -178,16 +180,43 @@ export default function DashboardAnalytics() {
       const loc = item.location ? item.location.toUpperCase() : 'UNKNOWN';
       locationMap[loc] = (locationMap[loc] || 0) + 1;
 
+      // Logika Aging khusus untuk issue yang masih pending / ongoing
       if (!isDone) {
-        const rawDateStr = item.date_time || item.created_at || item.created_date;
-        if (rawDateStr) {
-          const [y, m, d] = rawDateStr.split('T')[0].split(' ')[0].split('-').map(Number);
-          const createdDate = new Date(y, m - 1, d);
-          const ageDays = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
+        const estStr = item.estimated_closing;
+        if (estStr) {
+          let estDate = null;
+          // Format ISO / YYYY-MM-DD
+          if (estStr.includes('-')) {
+            const parts = estStr.split('T')[0].split(' ')[0].split('-');
+            if (parts[0].length === 4) {
+              estDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            } else {
+              estDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+            }
+          // Format DD/MM/YY atau DD/MM/YYYY
+          } else if (estStr.includes('/')) {
+            const parts = estStr.split('/');
+            const yearVal = parts[2].length === 2 ? Number('20' + parts[2]) : Number(parts[2]);
+            estDate = new Date(yearVal, Number(parts[1]) - 1, Number(parts[0]));
+          }
 
-          if (ageDays < 3) agingUnder3++;
-          else if (ageDays <= 7) aging3to7++;
-          else agingOver7++;
+          if (estDate && !isNaN(estDate.getTime())) {
+            const todayClean = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const targetClean = new Date(estDate.getFullYear(), estDate.getMonth(), estDate.getDate());
+            const diffDays = Math.ceil((targetClean.getTime() - todayClean.getTime()) / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 0) {
+              agingOverdue++; // Tanggal target sudah lewat
+            } else if (diffDays <= 3) {
+              agingDueSoon++; // Tersisa 0 - 3 hari
+            } else {
+              agingHealthy++; // Masih banyak waktu (> 3 hari)
+            }
+          } else {
+            agingOverdue++;
+          }
+        } else {
+          agingOverdue++;
         }
       }
     });
@@ -260,11 +289,11 @@ export default function DashboardAnalytics() {
         .sort((a, b) => b.count - a.count)
     );
 
-    // Aging Donut Data
+    // Aging Donut Data dengan nama kategori dan warna yang selaras
     setAgingData([
-      { name: '< 3 Days (Healthy)', count: agingUnder3, fill: '#16a34a' },
-      { name: '3 - 7 Days (Moderate)', count: aging3to7, fill: '#eab308' },
-      { name: '> 7 Days (Critical Overdue)', count: agingOver7, fill: '#dc3545' },
+      { name: 'On Track (Healthy)', count: agingHealthy, fill: '#16a34a' },
+      { name: 'Due Soon (≤ 3 Days)', count: agingDueSoon, fill: '#eab308' },
+      { name: 'Overdue (Critical)', count: agingOverdue, fill: '#dc3545' },
     ]);
 
     setTrendData(
@@ -281,7 +310,7 @@ export default function DashboardAnalytics() {
     processDashboard();
   }, [processDashboard]);
 
-  // Label peratusan untuk Classification Pie Chart
+  // Label persentase untuk Classification Pie Chart
   const renderCustomPercentageLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, value }) => {
     if (!value || percent === 0) return null;
     const RADIAN = Math.PI / 180;
@@ -303,7 +332,7 @@ export default function DashboardAnalytics() {
     );
   };
 
-  // Label peratusan luar dengan garisan penunjuk kemas (tidak terpotong)
+  // Label persentase luar dengan garis penunjuk rapi
   const renderAgingPercentageLabel = ({ cx, cy, midAngle, outerRadius, percent, value }) => {
     if (!value || percent === 0) return null;
     const RADIAN = Math.PI / 180;
