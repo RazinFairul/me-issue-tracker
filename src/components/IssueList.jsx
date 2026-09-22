@@ -201,7 +201,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return Array.from(new Set(issues.map((i) => i.staff_name || i.staff_id).filter(Boolean))).sort();
   }, [issues]);
 
-  // HANYA PELAPOR ASAL (REPORTER) SAHAJA YANG DIBENARKAN MENGUBAH / MEMADAM
+  // Hanya pelapor asal yang dibenarkan mengubah atau memadam
   const checkCanEdit = (issue) => {
     if (!currentUser || !issue) return false;
 
@@ -327,11 +327,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }
   };
 
-  // Muat data asal & laksana salin automatik jika fasa seterusnya masih kosong
+  // Muat data asal & laksana salin automatik berperingkat (1/4 -> 2/4 -> 3/4 -> 4/4)
   const loadOriginalIssueData = (issue) => {
     let cur = issue.status;
     if (!cur || cur === 'Open' || cur === 'In Progress (1/4)') {
-      cur = 'In Progress (2/4)'; // Cadangkan fasa 2/4 untuk dikemaskini
+      cur = 'In Progress (2/4)';
     }
     if (cur === 'Completed' || cur === 'Complete' || cur === 'Closed') {
       cur = 'Closed (4/4)';
@@ -343,44 +343,69 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setRootCause(matrix.root_cause || issue.root_cause || '');
     setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
 
-    const stage1 = {
-      progress: matrix['1/4']?.progress || (!matrix['1/4'] ? issue.progress_note || '' : ''),
-      remark: matrix['1/4']?.remark || '',
-      links: matrix['1/4']?.links || []
+    // Data Peringkat 1/4
+    const s1_progress = matrix['1/4']?.progress || issue.progress_note || '';
+    const s1_remark = matrix['1/4']?.remark || '';
+    const s1_links = matrix['1/4']?.links || [];
+
+    // Data Peringkat 2/4 (Jika kosong, auto-forward daripada 1/4)
+    const s2_progress = matrix['2/4']?.progress || s1_progress;
+    const s2_remark = matrix['2/4']?.remark || s1_remark;
+    const s2_links = (matrix['2/4']?.links && matrix['2/4'].links.length > 0) ? matrix['2/4'].links : s1_links;
+
+    // Data Peringkat 3/4 (Jika kosong, auto-forward daripada 2/4)
+    const s3_progress = matrix['3/4']?.progress || s2_progress;
+    const s3_remark = matrix['3/4']?.remark || s2_remark;
+    const s3_links = (matrix['3/4']?.links && matrix['3/4'].links.length > 0) ? matrix['3/4'].links : s2_links;
+
+    // Data Peringkat 4/4 (Jika kosong, auto-forward daripada 3/4)
+    const s4_progress = matrix['4/4']?.progress || s3_progress;
+    const s4_remark = matrix['4/4']?.remark || s3_remark;
+    const s4_links = (matrix['4/4']?.links && matrix['4/4'].links.length > 0) ? matrix['4/4'].links : s3_links;
+
+    const newStages = {
+      '1/4': { progress: s1_progress, remark: s1_remark, links: s1_links },
+      '2/4': { progress: s2_progress, remark: s2_remark, links: s2_links },
+      '3/4': { progress: s3_progress, remark: s3_remark, links: s3_links },
+      '4/4': { progress: s4_progress, remark: s4_remark, links: s4_links }
     };
 
-    // Auto forward 1/4 -> 2/4 jika 2/4 kosong
-    const stage2 = {
-      progress: matrix['2/4']?.progress || stage1.progress || '',
-      remark: matrix['2/4']?.remark || stage1.remark || '',
-      links: matrix['2/4']?.links || stage1.links || []
-    };
-
-    // Auto forward 2/4 -> 3/4 jika 3/4 kosong
-    const stage3 = {
-      progress: matrix['3/4']?.progress || (matrix['2/4']?.progress ? matrix['2/4'].progress : stage2.progress),
-      remark: matrix['3/4']?.remark || (matrix['2/4']?.remark ? matrix['2/4'].remark : stage2.remark),
-      links: matrix['3/4']?.links || (matrix['2/4']?.links ? matrix['2/4'].links : stage2.links)
-    };
-
-    // Auto forward 3/4 -> 4/4 jika 4/4 kosong
-    const stage4 = {
-      progress: matrix['4/4']?.progress || (matrix['3/4']?.progress ? matrix['3/4'].progress : stage3.progress),
-      remark: matrix['4/4']?.remark || (matrix['3/4']?.remark ? matrix['3/4'].remark : stage3.remark),
-      links: matrix['4/4']?.links || (matrix['3/4']?.links ? matrix['3/4'].links : stage3.links)
-    };
-
-    setStageDetails({
-      '1/4': stage1,
-      '2/4': stage2,
-      '3/4': stage3,
-      '4/4': stage4
-    });
+    setStageDetails(newStages);
 
     let activeStage = '2/4';
     if (cur.includes('3/4')) activeStage = '3/4';
     if (cur.includes('4/4')) activeStage = '4/4';
     setActiveStageTab(activeStage);
+  };
+
+  // Pengendali penukaran status dropdown: automatik bawa teks ke fasa baru jika masih kosong
+  const handleStatusChange = (newStatus) => {
+    setModalStatus(newStatus);
+
+    let targetStage = '2/4';
+    if (newStatus.includes('3/4')) targetStage = '3/4';
+    else if (newStatus.includes('4/4')) targetStage = '4/4';
+
+    setActiveStageTab(targetStage);
+
+    setStageDetails((prev) => {
+      const currentTarget = prev[targetStage];
+      const prevStageKey = targetStage === '4/4' ? '3/4' : targetStage === '3/4' ? '2/4' : '1/4';
+      const sourceStage = prev[prevStageKey];
+
+      // Jika fasa sasaran belum mempunyai progress, salin secara terus
+      if ((!currentTarget?.progress || currentTarget.progress.trim() === '') && sourceStage?.progress) {
+        return {
+          ...prev,
+          [targetStage]: {
+            progress: sourceStage.progress,
+            remark: currentTarget?.remark || sourceStage.remark || '',
+            links: (currentTarget?.links && currentTarget.links.length > 0) ? currentTarget.links : [...(sourceStage.links || [])]
+          }
+        };
+      }
+      return prev;
+    });
   };
 
   const handleOpenUpdateModal = (issue) => {
@@ -392,24 +417,39 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setSelectedIssue(issue);
     setTempLinkInput('');
 
+    // Muat data awal dengan auto-forward
+    loadOriginalIssueData(issue);
+
+    // Semak jika ada draf localStorage
     const savedDraftRaw = localStorage.getItem(`draft_update_${issue.id}`);
     if (savedDraftRaw) {
       try {
         const draft = JSON.parse(savedDraftRaw);
-        setModalStatus(draft.modalStatus || 'In Progress (2/4)');
-        setRootCause(draft.rootCause ?? '');
-        setCountermeasure(draft.countermeasure ?? '');
-        setStageDetails(draft.stageDetails || DEFAULT_STAGES);
-        setActiveStageTab(draft.activeStageTab || '2/4');
-        setHasRestoredModalDraft(true);
-        return;
+        if (draft.stageDetails) {
+          // Gabungkan draf sambil mengekalkan fallback jika kosong
+          setStageDetails((prev) => {
+            const merged = { ...prev };
+            ['2/4', '3/4', '4/4'].forEach((stg) => {
+              const prevKey = stg === '4/4' ? '3/4' : stg === '3/4' ? '2/4' : '1/4';
+              if (draft.stageDetails[stg]?.progress) {
+                merged[stg] = draft.stageDetails[stg];
+              } else if (!merged[stg]?.progress && merged[prevKey]?.progress) {
+                merged[stg] = { ...merged[prevKey] };
+              }
+            });
+            return merged;
+          });
+
+          setModalStatus(draft.modalStatus || 'In Progress (2/4)');
+          setRootCause(draft.rootCause ?? '');
+          setCountermeasure(draft.countermeasure ?? '');
+          setActiveStageTab(draft.activeStageTab || '2/4');
+          setHasRestoredModalDraft(true);
+        }
       } catch (err) {
         console.error('Failed to parse update modal draft:', err);
       }
     }
-
-    setHasRestoredModalDraft(false);
-    loadOriginalIssueData(issue);
   };
 
   const handleCloseModal = () => {
@@ -520,7 +560,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }));
   };
 
-  // Salin manual jika pengguna mahu menyalin kandungan peringkat sebelumnya
+  // Salin manual apabila pengguna menekan butang Forward
   const handleCopyFromPrevious = () => {
     const prevStage = activeStageTab === '4/4' ? '3/4' : activeStageTab === '3/4' ? '2/4' : '1/4';
     const sourceData = stageDetails[prevStage];
@@ -622,7 +662,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         const isClosed = rawStatus === 'closed' || rawStatus.includes('4/4') || rawStatus === 'completed' || rawStatus === 'complete';
 
         if (statusFilter === 'All In Progress') {
-          // Menapis semua isu yang belum ditutup (1/4, 2/4, 3/4)[cite: 12]
           matchesStatus = !isClosed;
         } else if (statusFilter === 'Closed (4/4)') {
           matchesStatus = isClosed;
@@ -1278,20 +1317,14 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
             <form onSubmit={handleSaveProgressMatrix}>
               
-              {/* Status Selector */}
+              {/* Status Selector - Dihubungkan ke handleStatusChange */}
               <div style={{ marginBottom: '15px', backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '6px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px', color: '#0f172a' }}>
                   Current Closing Status:
                 </label>
                 <select
                   value={modalStatus}
-                  onChange={(e) => {
-                    const newSt = e.target.value;
-                    setModalStatus(newSt);
-                    if (newSt.includes('2/4')) setActiveStageTab('2/4');
-                    else if (newSt.includes('3/4')) setActiveStageTab('3/4');
-                    else if (newSt.includes('4/4')) setActiveStageTab('4/4');
-                  }}
+                  onChange={(e) => handleStatusChange(e.target.value)}
                   style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #0d3b66', fontSize: '13px', backgroundColor: '#fff', fontWeight: 'bold' }}
                 >
                   <option value="In Progress (2/4)">◑ In Progress (2/4)</option>
@@ -1299,7 +1332,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   <option value="Closed (4/4)">⚫ Closed (4/4)</option>
                 </select>
                 <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
-                  *Changing to higher progress unlocks the corresponding In Progress tab below.
+                  *Changing to higher progress unlocks the corresponding tab below and copies previous progress automatically.
                 </small>
               </div>
 
