@@ -55,7 +55,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
   // Ref untuk memastikan deep link diproses sekali sahaja
   const deepLinkProcessedRef = useRef(false);
 
-  // Fungsi utiliti untuk membersihkan URL daripada parameter ?issueId=...
   const clearDeepLinkUrl = () => {
     localStorage.removeItem('open_issue_id');
     if (window.location.search.includes('issueId')) {
@@ -115,7 +114,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     fetchMasterData();
   }, [refreshTrigger]);
 
-  // Auto-simpan draf kemaskini ke localStorage semasa pengguna menaip
+  // Auto-simpan draf kemaskini ke localStorage
   useEffect(() => {
     if (!selectedIssue) return;
 
@@ -178,7 +177,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     });
   }, [issues]);
 
-  // Selaraskan terus dengan jadual master 'stations' (199 stesen tepat)[cite: 14]
   const filteredLocationOptions = useMemo(() => {
     let list = [];
     if (groupFilter === 'All' || groupFilter === 'IT') {
@@ -201,7 +199,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return Array.from(new Set(issues.map((i) => i.staff_name || i.staff_id).filter(Boolean))).sort();
   }, [issues]);
 
-  // Hanya pelapor asal yang dibenarkan mengubah atau memadam
   const checkCanEdit = (issue) => {
     if (!currentUser || !issue) return false;
 
@@ -327,16 +324,20 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }
   };
 
-  // Muat data asal & laksana salin automatik berperingkat (1/4 -> 2/4 -> 3/4 -> 4/4)
+  // Muat data & Auto-Forward kandungan secara teratur
   const loadOriginalIssueData = (issue) => {
-    let cur = issue.status;
-    if (!cur || cur === 'Open' || cur === 'In Progress (1/4)') {
-      cur = 'In Progress (2/4)';
-    }
+    let cur = issue.status || 'In Progress (1/4)';
+    if (cur === 'Open') cur = 'In Progress (1/4)';
     if (cur === 'Completed' || cur === 'Complete' || cur === 'Closed') {
       cur = 'Closed (4/4)';
     }
-    setModalStatus(cur);
+
+    // Jika sedang 1/4, cadangkan pengguna untuk kemaskini ke 2/4
+    let targetModalStatus = cur;
+    if (cur === 'In Progress (1/4)') {
+      targetModalStatus = 'In Progress (2/4)';
+    }
+    setModalStatus(targetModalStatus);
 
     const matrix = issue.progress_matrix && typeof issue.progress_matrix === 'object' ? issue.progress_matrix : {};
 
@@ -373,8 +374,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setStageDetails(newStages);
 
     let activeStage = '2/4';
-    if (cur.includes('3/4')) activeStage = '3/4';
-    if (cur.includes('4/4')) activeStage = '4/4';
+    if (targetModalStatus.includes('3/4')) activeStage = '3/4';
+    if (targetModalStatus.includes('4/4')) activeStage = '4/4';
     setActiveStageTab(activeStage);
   };
 
@@ -393,7 +394,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       const prevStageKey = targetStage === '4/4' ? '3/4' : targetStage === '3/4' ? '2/4' : '1/4';
       const sourceStage = prev[prevStageKey];
 
-      // Jika fasa sasaran belum mempunyai progress, salin secara terus
+      // Jika fasa sasaran belum mempunyai progress, salin secara terus daripada fasa sebelum
       if ((!currentTarget?.progress || currentTarget.progress.trim() === '') && sourceStage?.progress) {
         return {
           ...prev,
@@ -420,13 +421,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     // Muat data awal dengan auto-forward
     loadOriginalIssueData(issue);
 
-    // Semak jika ada draf localStorage
+    // Semak jika ada draf terkini dalam localStorage
     const savedDraftRaw = localStorage.getItem(`draft_update_${issue.id}`);
     if (savedDraftRaw) {
       try {
         const draft = JSON.parse(savedDraftRaw);
         if (draft.stageDetails) {
-          // Gabungkan draf sambil mengekalkan fallback jika kosong
           setStageDetails((prev) => {
             const merged = { ...prev };
             ['2/4', '3/4', '4/4'].forEach((stg) => {
@@ -467,7 +467,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     loadOriginalIssueData(selectedIssue);
   };
 
-  // Deep Link Auto-Opener: Penyegerakan mantap & penyelesaian isu mobile
+  // Deep Link Auto-Opener
   useEffect(() => {
     if (loading || !currentUser || !issues || issues.length === 0 || deepLinkProcessedRef.current) return;
 
@@ -560,7 +560,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }));
   };
 
-  // Salin manual apabila pengguna menekan butang Forward
+  // Butang salin manual jika pengguna mahu menyalin kandungan peringkat sebelumnya
   const handleCopyFromPrevious = () => {
     const prevStage = activeStageTab === '4/4' ? '3/4' : activeStageTab === '3/4' ? '2/4' : '1/4';
     const sourceData = stageDetails[prevStage];
@@ -791,7 +791,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
     worksheet['!rows'] = rowHeights;
 
-    // Memastikan hanya baris tajuk paling atas (Baris 1) yang diwarnakan biru korporat[cite: 15]
+    // Hanya warnakan baris tajuk paling atas (Baris 1)
     Object.keys(worksheet).forEach((cell) => {
       if (cell.startsWith('!')) return;
 
@@ -1071,6 +1071,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             const isReporterOnly = checkCanEdit(issue);
             const matrix = issue.progress_matrix || {};
 
+            // Logik paparan kad: Ambil data peringkat sedia ada, atau fallback jika ia fasa terkini
+            const s1 = matrix['1/4'] || { progress: issue.progress_note || '', remark: '', links: [] };
+            const s2 = matrix['2/4'] || {};
+            const s3 = matrix['3/4'] || {};
+            const s4 = matrix['4/4'] || {};
+
             return (
               <div
                 key={issue.id}
@@ -1179,14 +1185,18 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </div>
                     )}
 
-                    {/* In Progress 1/4 - 4/4 on Card */}
-                    {['1/4', '2/4', '3/4', '4/4'].map((stg) => {
-                      const data = matrix[stg];
+                    {/* Paparan Progress mengikut data sebenar pada kad */}
+                    {[
+                      { key: '1/4', data: s1, label: 'In Progress 1/4:' },
+                      { key: '2/4', data: s2, label: 'In Progress 2/4:' },
+                      { key: '3/4', data: s3, label: 'In Progress 3/4:' },
+                      { key: '4/4', data: s4, label: 'Closed (4/4):' }
+                    ].map(({ key, data, label }) => {
                       if (!data || (!data.progress && !data.remark && (!data.links || data.links.length === 0))) return null;
                       return (
-                        <div key={stg} style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 8px', borderRadius: '4px', marginTop: '4px', fontSize: '11px' }}>
-                          <span style={{ fontWeight: 'bold', color: stg === '4/4' ? '#16a34a' : '#0369a1' }}>
-                            {stg === '4/4' ? 'Closed (4/4):' : `In Progress ${stg}:`}
+                        <div key={key} style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 8px', borderRadius: '4px', marginTop: '4px', fontSize: '11px' }}>
+                          <span style={{ fontWeight: 'bold', color: key === '4/4' ? '#16a34a' : '#0369a1' }}>
+                            {label}
                           </span>
                           {data.progress && <div>• <b>Action:</b> {data.progress}</div>}
                           {data.remark && <div>• <b>Remark:</b> {data.remark}</div>}
