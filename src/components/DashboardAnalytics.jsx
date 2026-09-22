@@ -72,6 +72,20 @@ export default function DashboardAnalytics() {
     return String(Math.min(5, Math.ceil(dayNumber / 7)));
   };
 
+  // Helper untuk mengenali status Closed (termasuk "Closed (4/4)", "Completed", dll.)
+  const isClosedStatus = (statusStr) => {
+    if (!statusStr) return false;
+    const s = String(statusStr).trim().toLowerCase();
+    return (
+      s === 'closed' ||
+      s === 'close' ||
+      s.includes('4/4') ||
+      s.includes('closed') ||
+      s === 'completed' ||
+      s === 'complete'
+    );
+  };
+
   const processDashboard = useCallback(() => {
     if (!rawIssues.length) {
       setStats({ total: 0, inProgress: 0, closed: 0 });
@@ -153,11 +167,13 @@ export default function DashboardAnalytics() {
     let agingOver7 = 0;
 
     fullyFiltered.forEach((item) => {
-      const status = (item.status || 'in progress').trim().toLowerCase();
-      const isDone = status === 'closed' || status === 'close' || status === 'completed' || status === 'complete';
+      const isDone = isClosedStatus(item.status);
 
-      if (isDone) closedCount++;
-      else inProgressCount++;
+      if (isDone) {
+        closedCount++;
+      } else {
+        inProgressCount++;
+      }
 
       const loc = item.location ? item.location.toUpperCase() : 'UNKNOWN';
       locationMap[loc] = (locationMap[loc] || 0) + 1;
@@ -189,8 +205,7 @@ export default function DashboardAnalytics() {
         if (m >= 1 && m <= 12) {
           const monthKey = MONTHS[m - 1].label.substring(0, 3);
           monthCounts[monthKey].created++;
-          const status = (item.status || '').trim().toLowerCase();
-          if (status === 'closed' || status === 'close' || status === 'completed' || status === 'complete') {
+          if (isClosedStatus(item.status)) {
             monthCounts[monthKey].closed++;
           }
         }
@@ -597,7 +612,7 @@ export default function DashboardAnalytics() {
                 </div>
               </div>
 
-              {/* Donut Chart: Garisan label luar dikembalikan + kedudukan donut diturunkan sedikit agar tidak terpotong */}
+              {/* Donut Chart */}
               <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ marginTop: 0, color: '#0d3b66', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
                   ⏱️ Pending Issues Aging Breakdown
