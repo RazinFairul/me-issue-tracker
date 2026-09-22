@@ -108,7 +108,7 @@ serve(async (req: Request) => {
       let btnColor = "#2563eb";
       let descriptionText = "";
 
-      // 1. 2 HARI SEBELUM DUE DATE
+      // 1. 2 days before due date
       if (daysDiff === 2) {
         shouldSend = true;
         tagLabel = "2 DAYS BEFORE DUE";
@@ -117,7 +117,7 @@ serve(async (req: Request) => {
         btnColor = "#2563eb";
         descriptionText = `The following issue assigned to you is approaching its target closing date in <strong>2 DAYS</strong>:`;
       } 
-      // 2. 1 HARI SEBELUM DUE DATE (ESOK)
+      // 2. 1 day before due date (TOMORROW)
       else if (daysDiff === 1) {
         shouldSend = true;
         tagLabel = "1 DAY BEFORE DUE (TOMORROW)";
@@ -126,7 +126,7 @@ serve(async (req: Request) => {
         btnColor = "#ea580c";
         descriptionText = `The following issue assigned to you is due <strong>TOMORROW (1 DAY REMAINING)</strong>:`;
       } 
-      // 3. 1 HARI SELEPAS DUE DATE (OVERDUE SEMALAM)
+      // 3. 1 day after due date (OVERDUE)
       else if (daysDiff === -1) {
         shouldSend = true;
         tagLabel = "OVERDUE (1 DAY LATE)";

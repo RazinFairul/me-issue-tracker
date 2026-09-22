@@ -1313,9 +1313,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   <option value="Closed (4/4)">⚫ Closed (4/4)</option>
                 </select>
                 <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
-                  {modalStatus === 'In Progress (1/4)'
-                    ? '*Status 1/4 indicates newly logged issue. Switch to 2/4 or above to update action progress.'
-                    : '*Higher status unlocks the corresponding stage tab and carries forward previous action notes.'}
+                  {modalStatus === 'In Progress (1/4)' && (
+                    '*Stage 1/4 marks a newly registered issue. Select 2/4 or above to start entering action progress.'
+                  )}
+                  {modalStatus !== 'In Progress (1/4)' && modalStatus !== 'Closed (4/4)' && (
+                    '*Advancing the status unlocks the respective stage tab and automatically carries forward previous notes.'
+                  )}
                 </small>
               </div>
 
