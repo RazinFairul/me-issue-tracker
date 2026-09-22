@@ -177,24 +177,19 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     });
   }, [issues]);
 
+  // Selaraskan terus dengan jadual master 'stations' (199 stesen tepat)
   const filteredLocationOptions = useMemo(() => {
     let list = [];
     if (groupFilter === 'All' || groupFilter === 'IT') {
       list = dbStations.map((s) => s.station_code);
     } else {
-      list = dbStations.filter((s) => s.group_name === groupFilter).map((s) => s.station_code);
+      list = dbStations
+        .filter((s) => s.group_name === groupFilter)
+        .map((s) => s.station_code);
     }
 
-    issues.forEach((i) => {
-      if (i.location) {
-        if (groupFilter === 'All' || groupFilter === 'IT' || i.group_name === groupFilter) {
-          list.push(i.location);
-        }
-      }
-    });
-
     return Array.from(new Set(list.filter(Boolean))).sort();
-  }, [dbStations, issues, groupFilter]);
+  }, [dbStations, groupFilter]);
 
   const uniqueEngineVariants = useMemo(() => {
     const fromIssues = issues.map((i) => i.engine_variant).filter(Boolean);
@@ -591,7 +586,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         const isClosed = rawStatus === 'closed' || rawStatus.includes('4/4') || rawStatus === 'completed' || rawStatus === 'complete';
 
         if (statusFilter === 'All In Progress') {
-          // Hanya ambil isu yang belum tutup (1/4, 2/4, 3/4 atau kosong)
+          // Menapis semua isu yang belum ditutup (1/4, 2/4, 3/4)
           matchesStatus = !isClosed;
         } else if (statusFilter === 'Closed (4/4)') {
           matchesStatus = isClosed;
