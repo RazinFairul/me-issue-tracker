@@ -13,7 +13,8 @@ const STAGE_ORDER = {
 const DEFAULT_STAGES = {
   '1/4': { progress: '', remark: '', links: [] },
   '2/4': { progress: '', remark: '', links: [] },
-  '3/4': { progress: '', remark: '', links: [] }
+  '3/4': { progress: '', remark: '', links: [] },
+  '4/4': { progress: '', remark: '', links: [] }
 };
 
 export default function IssueList({ onBackToDashboard, refreshTrigger }) {
@@ -42,11 +43,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
   // Update Modal State
   const [selectedIssue, setSelectedIssue] = useState(null);
-  const [modalStatus, setModalStatus] = useState('In Progress (1/4)');
+  const [modalStatus, setModalStatus] = useState('In Progress (2/4)');
   const [rootCause, setRootCause] = useState('');
   const [countermeasure, setCountermeasure] = useState('');
   const [stageDetails, setStageDetails] = useState(DEFAULT_STAGES);
-  const [activeStageTab, setActiveStageTab] = useState('1/4');
+  const [activeStageTab, setActiveStageTab] = useState('2/4');
   const [tempLinkInput, setTempLinkInput] = useState('');
   const [updating, setUpdating] = useState(false);
   const [hasRestoredModalDraft, setHasRestoredModalDraft] = useState(false);
@@ -326,10 +327,15 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }
   };
 
+  // Muat data asal & laksana salin automatik jika fasa seterusnya masih kosong
   const loadOriginalIssueData = (issue) => {
     let cur = issue.status;
-    if (!cur || cur === 'Open') cur = 'In Progress (1/4)';
-    if (cur === 'Completed' || cur === 'Complete' || cur === 'Closed') cur = 'Closed (4/4)';
+    if (!cur || cur === 'Open' || cur === 'In Progress (1/4)') {
+      cur = 'In Progress (2/4)'; // Cadangkan fasa 2/4 untuk dikemaskini
+    }
+    if (cur === 'Completed' || cur === 'Complete' || cur === 'Closed') {
+      cur = 'Closed (4/4)';
+    }
     setModalStatus(cur);
 
     const matrix = issue.progress_matrix && typeof issue.progress_matrix === 'object' ? issue.progress_matrix : {};
@@ -337,27 +343,43 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setRootCause(matrix.root_cause || issue.root_cause || '');
     setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
 
+    const stage1 = {
+      progress: matrix['1/4']?.progress || (!matrix['1/4'] ? issue.progress_note || '' : ''),
+      remark: matrix['1/4']?.remark || '',
+      links: matrix['1/4']?.links || []
+    };
+
+    // Auto forward 1/4 -> 2/4 jika 2/4 kosong
+    const stage2 = {
+      progress: matrix['2/4']?.progress || stage1.progress || '',
+      remark: matrix['2/4']?.remark || stage1.remark || '',
+      links: matrix['2/4']?.links || stage1.links || []
+    };
+
+    // Auto forward 2/4 -> 3/4 jika 3/4 kosong
+    const stage3 = {
+      progress: matrix['3/4']?.progress || (matrix['2/4']?.progress ? matrix['2/4'].progress : stage2.progress),
+      remark: matrix['3/4']?.remark || (matrix['2/4']?.remark ? matrix['2/4'].remark : stage2.remark),
+      links: matrix['3/4']?.links || (matrix['2/4']?.links ? matrix['2/4'].links : stage2.links)
+    };
+
+    // Auto forward 3/4 -> 4/4 jika 4/4 kosong
+    const stage4 = {
+      progress: matrix['4/4']?.progress || (matrix['3/4']?.progress ? matrix['3/4'].progress : stage3.progress),
+      remark: matrix['4/4']?.remark || (matrix['3/4']?.remark ? matrix['3/4'].remark : stage3.remark),
+      links: matrix['4/4']?.links || (matrix['3/4']?.links ? matrix['3/4'].links : stage3.links)
+    };
+
     setStageDetails({
-      '1/4': {
-        progress: matrix['1/4']?.progress || (matrix['1/4'] ? '' : issue.progress_note || ''),
-        remark: matrix['1/4']?.remark || '',
-        links: matrix['1/4']?.links || []
-      },
-      '2/4': {
-        progress: matrix['2/4']?.progress || '',
-        remark: matrix['2/4']?.remark || '',
-        links: matrix['2/4']?.links || []
-      },
-      '3/4': {
-        progress: matrix['3/4']?.progress || '',
-        remark: matrix['3/4']?.remark || '',
-        links: matrix['3/4']?.links || []
-      }
+      '1/4': stage1,
+      '2/4': stage2,
+      '3/4': stage3,
+      '4/4': stage4
     });
 
-    let activeStage = '1/4';
-    if (cur.includes('2/4')) activeStage = '2/4';
-    if (cur.includes('3/4') || cur.includes('4/4')) activeStage = '3/4';
+    let activeStage = '2/4';
+    if (cur.includes('3/4')) activeStage = '3/4';
+    if (cur.includes('4/4')) activeStage = '4/4';
     setActiveStageTab(activeStage);
   };
 
@@ -370,16 +392,15 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setSelectedIssue(issue);
     setTempLinkInput('');
 
-    // Semak jika terdapat draf tempatan bagi isu ini
     const savedDraftRaw = localStorage.getItem(`draft_update_${issue.id}`);
     if (savedDraftRaw) {
       try {
         const draft = JSON.parse(savedDraftRaw);
-        setModalStatus(draft.modalStatus || issue.status || 'In Progress (1/4)');
+        setModalStatus(draft.modalStatus || 'In Progress (2/4)');
         setRootCause(draft.rootCause ?? '');
         setCountermeasure(draft.countermeasure ?? '');
         setStageDetails(draft.stageDetails || DEFAULT_STAGES);
-        setActiveStageTab(draft.activeStageTab || '1/4');
+        setActiveStageTab(draft.activeStageTab || '2/4');
         setHasRestoredModalDraft(true);
         return;
       } catch (err) {
@@ -387,7 +408,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       }
     }
 
-    // Jika tiada draf tersimpan, muat data asal pangkalan data
     setHasRestoredModalDraft(false);
     loadOriginalIssueData(issue);
   };
@@ -418,11 +438,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     const targetIssue = issues.find((item) => String(item.id) === String(targetId));
     if (targetIssue) {
       deepLinkProcessedRef.current = true;
-
-      // Bersihkan URL dan localStorage serta-merta supaya mobile tidak tersekat
       clearDeepLinkUrl();
 
-      // Reset semua tapisan agar kad isu sasaran tidak tersembunyi
       setSearchTerm('');
       setPeriodFilter('All');
       setStatusFilter('All');
@@ -450,15 +467,14 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         }, 400);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issues, currentUser, loading]);
 
   const maxUnlockedLevel = useMemo(() => {
-    return STAGE_ORDER[modalStatus] || 1;
+    return STAGE_ORDER[modalStatus] || 2;
   }, [modalStatus]);
 
   const isStageUnlocked = (stageKey) => {
-    const stageMap = { '1/4': 1, '2/4': 2, '3/4': 3 };
+    const stageMap = { '2/4': 2, '3/4': 3, '4/4': 4 };
     return stageMap[stageKey] <= maxUnlockedLevel;
   };
 
@@ -504,6 +520,26 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }));
   };
 
+  // Salin manual jika pengguna mahu menyalin kandungan peringkat sebelumnya
+  const handleCopyFromPrevious = () => {
+    const prevStage = activeStageTab === '4/4' ? '3/4' : activeStageTab === '3/4' ? '2/4' : '1/4';
+    const sourceData = stageDetails[prevStage];
+
+    if (!sourceData || (!sourceData.progress && !sourceData.remark)) {
+      alert(`No content available in ${prevStage} to forward.`);
+      return;
+    }
+
+    setStageDetails((prev) => ({
+      ...prev,
+      [activeStageTab]: {
+        progress: sourceData.progress || '',
+        remark: sourceData.remark || '',
+        links: [...(sourceData.links || [])]
+      }
+    }));
+  };
+
   const handleSaveProgressMatrix = async (e) => {
     e.preventDefault();
     if (!checkCanEdit(selectedIssue)) {
@@ -519,7 +555,8 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       countermeasure: countermeasure,
       '1/4': stageDetails['1/4'],
       '2/4': stageDetails['2/4'],
-      '3/4': stageDetails['3/4']
+      '3/4': stageDetails['3/4'],
+      '4/4': stageDetails['4/4']
     };
 
     const latestNote = stageDetails[activeStageTab]?.progress || selectedIssue.progress_note || '';
@@ -537,7 +574,6 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     if (error) {
       alert('Failed to update progress: ' + error.message);
     } else {
-      // Padam draf tempatan selepas berjaya menyimpan rekod ke Supabase
       localStorage.removeItem(`draft_update_${selectedIssue.id}`);
       setHasRestoredModalDraft(false);
       clearDeepLinkUrl();
@@ -678,14 +714,14 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
       const rawDate = i.date_time || i.created_at;
       const pMatrix = i.progress_matrix || {};
 
-      const progressList = ['1/4', '2/4', '3/4']
+      const progressList = ['1/4', '2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.progress)
-        .map((stg) => `In Progress ${stg}: ${pMatrix[stg].progress}`);
+        .map((stg) => `${stg === '4/4' ? 'Closed 4/4' : `In Progress ${stg}`}: ${pMatrix[stg].progress}`);
       const formattedProgress = progressList.length > 0 ? progressList.join('\r\n') : '-';
 
-      const remarkList = ['1/4', '2/4', '3/4']
+      const remarkList = ['1/4', '2/4', '3/4', '4/4']
         .filter((stg) => pMatrix[stg]?.remark)
-        .map((stg) => `In Progress ${stg}: ${pMatrix[stg].remark}`);
+        .map((stg) => `${stg === '4/4' ? 'Closed 4/4' : `In Progress ${stg}`}: ${pMatrix[stg].remark}`);
       const formattedRemarks = remarkList.length > 0 ? remarkList.join('\r\n') : '-';
 
       const maxLines = Math.max(progressList.length, remarkList.length, 1);
@@ -1104,14 +1140,16 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </div>
                     )}
 
-                    {/* In Progress 1/4 - 3/4 on Card */}
-                    {['1/4', '2/4', '3/4'].map((stg) => {
+                    {/* In Progress 1/4 - 4/4 on Card */}
+                    {['1/4', '2/4', '3/4', '4/4'].map((stg) => {
                       const data = matrix[stg];
                       if (!data || (!data.progress && !data.remark && (!data.links || data.links.length === 0))) return null;
                       return (
                         <div key={stg} style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 8px', borderRadius: '4px', marginTop: '4px', fontSize: '11px' }}>
-                          <span style={{ fontWeight: 'bold', color: '#0369a1' }}>In Progress {stg}:</span>
-                          {data.progress && <div>• <b>Progress:</b> {data.progress}</div>}
+                          <span style={{ fontWeight: 'bold', color: stg === '4/4' ? '#16a34a' : '#0369a1' }}>
+                            {stg === '4/4' ? 'Closed (4/4):' : `In Progress ${stg}:`}
+                          </span>
+                          {data.progress && <div>• <b>Action:</b> {data.progress}</div>}
                           {data.remark && <div>• <b>Remark:</b> {data.remark}</div>}
                           {data.links && data.links.length > 0 && (
                             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '3px' }}>
@@ -1194,7 +1232,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         </div>
       )}
 
-      {/* Structured Progress & Multi-Link Modal (Hanya In Progress 1/4 - 3/4) */}
+      {/* Modal Kemas Kini Progress (2/4, 3/4 & 4/4) */}
       {selectedIssue && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '15px' }}>
           <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '100%', maxWidth: '750px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
@@ -1251,11 +1289,11 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                     const newSt = e.target.value;
                     setModalStatus(newSt);
                     if (newSt.includes('2/4')) setActiveStageTab('2/4');
-                    else if (newSt.includes('3/4') || newSt.includes('4/4')) setActiveStageTab('3/4');
+                    else if (newSt.includes('3/4')) setActiveStageTab('3/4');
+                    else if (newSt.includes('4/4')) setActiveStageTab('4/4');
                   }}
                   style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #0d3b66', fontSize: '13px', backgroundColor: '#fff', fontWeight: 'bold' }}
                 >
-                  <option value="In Progress (1/4)">◔ In Progress (1/4)</option>
                   <option value="In Progress (2/4)">◑ In Progress (2/4)</option>
                   <option value="In Progress (3/4)">◕ In Progress (3/4)</option>
                   <option value="Closed (4/4)">⚫ Closed (4/4)</option>
@@ -1300,11 +1338,12 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 </div>
               </div>
 
-              {/* 2. In Progress Tabs (1/4, 2/4, 3/4 Sahaja) */}
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '6px' }}>
-                {['1/4', '2/4', '3/4'].map((stage) => {
+              {/* 2. In Progress Tabs (2/4, 3/4 & 4/4 Sahaja) */}
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '6px', flexWrap: 'wrap' }}>
+                {['2/4', '3/4', '4/4'].map((stage) => {
                   const unlocked = isStageUnlocked(stage);
                   const isSelected = activeStageTab === stage;
+                  const labelTitle = stage === '4/4' ? 'Closed (4/4)' : `In Progress ${stage}`;
                   return (
                     <button
                       key={stage}
@@ -1324,7 +1363,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       }}
                       title={!unlocked ? `Update status to at least ${stage} to unlock this tab.` : ''}
                     >
-                      {!unlocked ? '🔒 ' : '✓ '} In Progress {stage}
+                      {!unlocked ? '🔒 ' : '✓ '} {labelTitle}
                     </button>
                   );
                 })}
@@ -1332,18 +1371,39 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
               {/* 3. Progress & Remark Inputs */}
               <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '14px', marginBottom: '15px', backgroundColor: '#f8fafc' }}>
-                <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#0d3b66', display: 'block', marginBottom: '10px' }}>
-                  Progress & Remark for In Progress {activeStageTab}:
-                </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#0d3b66' }}>
+                    {activeStageTab === '4/4' ? 'Action & Verification for Closed (4/4):' : `Progress & Remark for In Progress ${activeStageTab}:`}
+                  </span>
+
+                  {/* Butang Salin / Forward dari peringkat sebelumnya */}
+                  <button
+                    type="button"
+                    onClick={handleCopyFromPrevious}
+                    style={{
+                      backgroundColor: '#e0f2fe',
+                      color: '#0369a1',
+                      border: '1px solid #bae6fd',
+                      borderRadius: '4px',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer'
+                    }}
+                    title="Copy details from previous stage to edit"
+                  >
+                    ⏩ Forward from {activeStageTab === '4/4' ? '3/4' : activeStageTab === '3/4' ? '2/4' : '1/4'}
+                  </button>
+                </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px', marginBottom: '10px' }}>
                   <div>
                     <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '3px' }}>
-                      Progress / Action Taken ({activeStageTab}):
+                      {activeStageTab === '4/4' ? 'Final Action / Verification (4/4):' : `Progress / Action Taken (${activeStageTab}):`}
                     </label>
                     <textarea
                       rows="3"
-                      placeholder={`Enter progress notes for In Progress ${activeStageTab}...`}
+                      placeholder={`Enter notes for stage ${activeStageTab}...`}
                       value={stageDetails[activeStageTab]?.progress || ''}
                       onChange={(e) => handleStageFieldChange('progress', e.target.value)}
                       style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
@@ -1356,7 +1416,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                     </label>
                     <textarea
                       rows="3"
-                      placeholder={`Enter remarks / blockers for In Progress ${activeStageTab}...`}
+                      placeholder={`Enter remarks / blockers for stage ${activeStageTab}...`}
                       value={stageDetails[activeStageTab]?.remark || ''}
                       onChange={(e) => handleStageFieldChange('remark', e.target.value)}
                       style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
@@ -1367,7 +1427,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 {/* Multiple Attachment Links */}
                 <div style={{ marginTop: '12px', borderTop: '1px dashed #cbd5e1', paddingTop: '10px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '4px' }}>
-                    🔗 Attachment Links for In Progress {activeStageTab}:
+                    🔗 Attachment Links for Stage {activeStageTab}:
                   </label>
 
                   <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
