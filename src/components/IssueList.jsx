@@ -113,7 +113,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     fetchMasterData();
   }, [refreshTrigger]);
 
-  // Auto-simpan draf kemaskini ke localStorage
+  // Auto-save update draft to localStorage
   useEffect(() => {
     if (!selectedIssue) return;
 
@@ -198,6 +198,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     return Array.from(new Set(issues.map((i) => i.staff_name || i.staff_id).filter(Boolean))).sort();
   }, [issues]);
 
+  // Only the original reporter is authorized to edit or delete
   const checkCanEdit = (issue) => {
     if (!currentUser || !issue) return false;
 
@@ -323,7 +324,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     }
   };
 
-  // Muat data untuk Modal Kemas Kini
+  // Load issue data into modal
   const loadOriginalIssueData = (issue) => {
     let cur = issue.status || 'In Progress (1/4)';
     if (cur === 'Open') cur = 'In Progress (1/4)';
@@ -337,7 +338,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
     setRootCause(matrix.root_cause || issue.root_cause || '');
     setCountermeasure(matrix.countermeasure || issue.countermeasure || '');
 
-    // Fasa 1/4 sentiasa kosong tanpa input progress/remark bertulis
+    // Stage 1/4 is always empty for written action notes
     const s2_progress = matrix['2/4']?.progress || '';
     const s2_remark = matrix['2/4']?.remark || '';
     const s2_links = matrix['2/4']?.links || [];
@@ -372,7 +373,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
     setActiveStageTab(targetStage);
 
-    // Auto-forward hanya jika fasa sasaran kosong dan status bukan 1/4
+    // Auto-forward only if target stage is empty and status is not 1/4
     setStageDetails((prev) => {
       if (newStatus === 'In Progress (1/4)') return prev;
 
@@ -1040,11 +1041,9 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
             const isReporterOnly = checkCanEdit(issue);
             const matrix = issue.progress_matrix || {};
 
-            // Tahap status semasa isu
             const curStatus = issue.status || 'In Progress (1/4)';
             const maxStageLevel = STAGE_ORDER[curStatus] || 1;
 
-            // Fasa 2/4, 3/4, 4/4 sahaja (Fasa 1/4 tidak mempunyai kotak tindakan)
             const stagesToDisplay = [
               { key: '2/4', level: 2, data: matrix['2/4'], label: 'In Progress 2/4:' },
               { key: '3/4', level: 3, data: matrix['3/4'], label: 'In Progress 3/4:' },
@@ -1159,7 +1158,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                       </div>
                     )}
 
-                    {/* Paparan Progress: Hanya fasa yang dicapai sahaja yang dipaparkan */}
+                    {/* Stage Progress Details */}
                     {stagesToDisplay.map(({ key, level, data, label }) => {
                       if (level > maxStageLevel) return null;
                       if (!data || (!data.progress && !data.remark && (!data.links || data.links.length === 0))) return null;
@@ -1252,7 +1251,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
         </div>
       )}
 
-      {/* Modal Kemas Kini Progress (2/4, 3/4 & 4/4) */}
+      {/* Update Progress Modal (Stages 2/4, 3/4 & 4/4) */}
       {selectedIssue && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '15px' }}>
           <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '100%', maxWidth: '750px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
@@ -1298,7 +1297,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
 
             <form onSubmit={handleSaveProgressMatrix}>
               
-              {/* Status Selector: Pilihan dari 1/4 hingga 4/4 */}
+              {/* Status Selector */}
               <div style={{ marginBottom: '15px', backgroundColor: '#f1f5f9', padding: '10px', borderRadius: '6px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', fontSize: '12px', marginBottom: '5px', color: '#0f172a' }}>
                   Current Closing Status:
@@ -1308,15 +1307,15 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                   onChange={(e) => handleStatusChange(e.target.value)}
                   style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #0d3b66', fontSize: '13px', backgroundColor: '#fff', fontWeight: 'bold' }}
                 >
-                  <option value="In Progress (1/4)">◔ In Progress (1/4) (Newly Logged)</option>
+                  <option value="In Progress (1/4)">◔ In Progress (1/4)</option>
                   <option value="In Progress (2/4)">◑ In Progress (2/4)</option>
                   <option value="In Progress (3/4)">◕ In Progress (3/4)</option>
                   <option value="Closed (4/4)">⚫ Closed (4/4)</option>
                 </select>
                 <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
                   {modalStatus === 'In Progress (1/4)'
-                    ? '*Status 1/4 menandakan isu baru dibuka tanpa tindakan. Tukar ke 2/4 ke atas untuk mengemas kini progress.'
-                    : '*Peringkat unlocked mengikut status. Isi fasa sebelum akan disalin secara automatik jika fasa seterusnya kosong.'}
+                    ? '*Status 1/4 indicates newly logged issue. Switch to 2/4 or above to update action progress.'
+                    : '*Higher status unlocks the corresponding stage tab and carries forward previous action notes.'}
                 </small>
               </div>
 
@@ -1355,7 +1354,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                 </div>
               </div>
 
-              {/* 2. In Progress Tabs (2/4, 3/4 & 4/4 Sahaja) */}
+              {/* 2. In Progress Tabs (2/4, 3/4 & 4/4) */}
               <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '6px', flexWrap: 'wrap' }}>
                 {['2/4', '3/4', '4/4'].map((stage) => {
                   const unlocked = isStageUnlocked(stage);
@@ -1393,7 +1392,7 @@ export default function IssueList({ onBackToDashboard, refreshTrigger }) {
                     {activeStageTab === '4/4' ? 'Action & Verification for Closed (4/4):' : `Progress & Remark for In Progress ${activeStageTab}:`}
                   </span>
 
-                  {/* Butang Forward dari peringkat sebelumnya */}
+                  {/* Manual Forward Button */}
                   {activeStageTab !== '2/4' && (
                     <button
                       type="button"
